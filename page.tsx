@@ -1,16 +1,34 @@
 'use client';
 import React, { useState, useEffect } from 'react';
 import { User, Users, FileText, UserPlus, CheckCircle, AlertCircle, Clock, Search } from 'lucide-react';
-import jwt_decode from 'jwt-decode';
+import type {
+  Address,
+  Employee,
+  ChangeRequest,
+  CurrentUser,
+  CandidateForm,
+  EmployeeForm,
+  ChangeRequestForm,
+  SelfUpdateForm,
+  APIResponse,
+} from '@/types/employee-profile.types';
+// import {EmployeeProfile} from '@/'
+import { SystemRole } from '@/types/employee-profile.types';
 
 // API Service
 class APIService {
+  private baseURL: string;
+
   constructor() {
     this.baseURL = 'http://localhost:5000';
   }
 
-  async request(endpoint, options = {}) {
-    const headers = { 'Content-Type': 'application/json', ...options.headers };
+  async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
+    const headers = { 
+      'Content-Type': 'application/json', 
+      ...(options.headers as Record<string, string>) 
+    };
+    
     try {
       const response = await fetch(`${this.baseURL}${endpoint}`, {
         ...options,
@@ -36,47 +54,182 @@ class APIService {
     }
   }
 
-  getAllEmployees() { return this.request('/employee-profile'); }
-  getEmployee(id) { return this.request(`/employee-profile/${id}`); }
-  getMyProfile(employeeNumber) { return this.request(`/employee-profile/${employeeNumber}/my-profile`); }
-  updateSelfImmediate(employeeNumber, data) { return this.request(`/employee-profile/${employeeNumber}/my-profile/immediate`, { method: 'PUT', body: JSON.stringify(data) }); }
-  createEmployee(data) { return this.request('/employee-profile', { method: 'POST', body: JSON.stringify(data) }); }
-  updateEmployeeAdmin(id, data) { return this.request(`/employee-profile/${id}/admin`, { method: 'PUT', body: JSON.stringify(data) }); }
-  getMyEmployees() { return this.request('/employee-profile/my-employees'); }
-  createChangeRequest(employeeNumber, data) { return this.request(`/employee-profile/${employeeNumber}/my-profile/change-request`, { method: 'POST', body: JSON.stringify(data) }); }
-  getAllChangeRequests() { return this.request('/employee-profile/change-requests/all'); }
-  reviewChangeRequest(requestId, data) { return this.request(`/employee-profile/change-request/${requestId}/review`, { method: 'POST', body: JSON.stringify(data) }); }
-  createCandidate(data) { return this.request('/employee-profile/candidate', { method: 'POST', body: JSON.stringify(data) }); }
-  getByRole(role) { return this.request(`/employee-profile/roles?role=${role}`); }
-  getMyRole() { return this.request('/employee-profile/myrole', { headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } }); }
+  getAllEmployees(): Promise<Employee[]> { 
+    return this.request<Employee[]>('/employee-profile'); 
+  }
+  
+  getEmployee(id: string): Promise<Employee> { 
+    return this.request<Employee>(`/employee-profile/${id}`); 
+  }
+  
+  getMyProfile(employeeNumber: string): Promise<Employee> { 
+    return this.request<Employee>(`/employee-profile/${employeeNumber}/my-profile`); 
+  }
+  
+  updateSelfImmediate(employeeNumber: string, data: Partial<SelfUpdateForm>): Promise<Employee> { 
+    return this.request<Employee>(`/employee-profile/${employeeNumber}/my-profile/immediate`, { 
+      method: 'PUT', 
+      body: JSON.stringify(data) 
+    }); 
+  }
+  
+  createEmployee(data: Partial<EmployeeForm>): Promise<Employee> { 
+    return this.request<Employee>('/employee-profile', { 
+      method: 'POST', 
+      body: JSON.stringify(data) 
+    }); 
+  }
+  
+  updateEmployeeAdmin(id: string, data: Partial<Employee>): Promise<Employee> { 
+    return this.request<Employee>(`/employee-profile/${id}/admin`, { 
+      method: 'PUT', 
+      body: JSON.stringify(data) 
+    }); 
+  }
+  
+  getMyEmployees(): Promise<Employee[]> { 
+    return this.request<Employee[]>('/employee-profile/my-employees'); 
+  }
+  
+  // createChangeRequest(employeeNumber: string, data: ChangeRequestForm): Promise<ChangeRequest> { 
+  //   return this.request<ChangeRequest>(`/employee-profile/${employeeNumber}/my-profile/change-request`, { 
+  //     method: 'POST', 
+  //     body: JSON.stringify(data) 
+  //   }); 
+  // }
+  async createProfileChangeRequest(
+  employeeNumber: string,
+  data: {
+    requestDescription: string;
+    reason: string;
+  }
+) {
+  return this.request(
+    `/employee-profile/${employeeNumber}/my-profile/change-request`,
+    {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }
+  );
+}
+
+  
+  getAllChangeRequests(): Promise<ChangeRequest[]> { 
+    return this.request<ChangeRequest[]>('/employee-profile/change-requests/all'); 
+  }
+  
+  reviewChangeRequest(
+    requestId: string,
+    data: { action: 'APPROVED' | 'REJECTED' | 'CANCELED'; patch?: any }
+  ): Promise<ChangeRequest> {
+    return this.request<ChangeRequest>(
+      `/employee-profile/change-request/${requestId}/review`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+  
+  createCandidate(data: CandidateForm): Promise<any> { 
+    // Map frontend form fields to backend DTO format
+    const payload = {
+      firstName: data.firstName,
+      lastName: data.lastName,
+      fullName: `${data.firstName} ${data.lastName}`,
+      workEmail: data.email,
+      mobilePhone: data.phone,
+      password: data.password,
+      nationalId: data.nationalId, // ✅ THIS WAS MISSING
+      roles: [data.role], // Backend expects an array of roles,
+    };
+    return this.request<any>('/employee-profile/candidate', { 
+      method: 'POST', 
+      body: JSON.stringify(payload) 
+    }); 
+  }
+  
+  getByRole(role: string): Promise<Employee[]> { 
+    return this.request<Employee[]>(`/employee-profile/roles?role=${role}`); 
+  }
+  
+  getMyRole(): Promise<{ role: string; roles: string[] }> { 
+    return this.request<{ role: string; roles: string[] }>('/employee-profile/myrole', { 
+      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } 
+    }); 
+  }
 }
 
 const api = new APIService();
 
-const EmployeeProfileDashboard = () => {
-  const [activeView, setActiveView] = useState('overview');
-  const [employees, setEmployees] = useState([]);
-  const [changeRequests, setChangeRequests] = useState([]);
-  const [myProfile, setMyProfile] = useState(null);
-  const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
-  const [searchTerm, setSearchTerm] = useState('');
-  const [roles, setRoles] = useState([]);
-  const [role, setRole] = useState('');
+const EmployeeProfileDashboard: React.FC = () => {
+  const [activeView, setActiveView] = useState<string>('overview');
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
+  const [myProfile, setMyProfile] = useState<Employee | null>(null);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+  const [success, setSuccess] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [roles, setRoles] = useState<string[]>([]);
+  const [role, setRole] = useState<string>('');
 
-  const [currentUser] = useState({ employeeNumber: 'EMP-1001', roles: ['HR_MANAGER'], primaryDepartmentId: '507f1f77bcf86cd799439011' });
+  const [currentUser] = useState<CurrentUser>({ 
+    employeeNumber: 'EMP-1001', 
+    roles: ['HR_MANAGER'], 
+    primaryDepartmentId: '507f1f77bcf86cd799439011' 
+  });
 
-  const [candidateForm, setCandidateForm] = useState({ firstName: '', lastName: '', email: '', phone: '' });
-  const [employeeForm, setEmployeeForm] = useState({ firstName: '', lastName: '', email: '', phone: '', position: '' });
-  const [changeRequestForm, setChangeRequestForm] = useState({ requestDescription: '', reason: '' });
-  const [selfUpdateForm, setSelfUpdateForm] = useState({ profilePictureUrl: '', biography: '', personalEmail: '', mobilePhone: '', address: { city: '', streetAddress: '', country: '' } });
+  const [candidateForm, setCandidateForm] = useState<CandidateForm>({ 
+    firstName: '', 
+    lastName: '', 
+    email: '', 
+    phone: '',
+    password: '',
+    role: SystemRole.JOB_CANDIDATE,
+      nationalId: '', // <-- added
 
-  const hasRole = (r) => roles.includes(r);
-  const isHR = hasRole('HR Manager') || hasRole('HR Employee');
+  });
+  
+  const [employeeForm, setEmployeeForm] = useState<EmployeeForm>({ 
+    firstName: '', 
+    lastName: '', 
+    email: '', 
+    phone: '', 
+    position: ''
+  });
+  
+  // const [changeRequestForm, setChangeRequestForm] = useState<ChangeRequestForm>({ 
+  //   requestDescription: '', 
+  //   reason: '' 
+  // });
+  const [changeRequest, setChangeRequest] = useState({
+    requestDescription: '',
+    reason: '',
+  });
+
+  const [crSuccess, setCrSuccess] = useState('');
+  const [crError, setCrError] = useState('');
+
+  
+  const [selfUpdateForm, setSelfUpdateForm] = useState<SelfUpdateForm>({ 
+    profilePictureUrl: '', 
+    biography: '', 
+    personalEmail: '', 
+    mobilePhone: '', 
+    address: { city: '', streetAddress: '', country: '' } 
+  });
+
+  const hasRole = (r: string): boolean => roles.includes(r);
+  const isHR = hasRole('HR Manager') || hasRole('HR Admin');
+  const isHRManager = hasRole('HR Manager');
+  const isRecruiter = hasRole('Recruiter');
   const isDeptHead = hasRole('department head');
   const isDeptEmployee = hasRole('department employee');
+  const isHREmployee = hasRole('HR Employee');
+  const isSystemAdmin = hasRole('System Admin');
 
   useEffect(() => {
     const fetchRoles = async () => {
@@ -91,36 +244,44 @@ const EmployeeProfileDashboard = () => {
     };
     fetchRoles();
     fetchMyProfile();
-    loadEmployees();
+    
+    //loadEmployees();
   }, []);
+  console.log('Current logged-in user profile:', myProfile);
+  console.log('Current logged-in user roles:', roles);
 
-  // Fetch change requests
-useEffect(() => {
-  if (activeView === 'change-requests') {
-    const fetchRequests = async () => {
-      setLoading(true);
-      try {
-        const data = await api.getAllChangeRequests();
-        console.log('Change Requests fetched:', data); // log for debugging
-        setChangeRequests(data);
-      } catch (err) {
-        console.error('Failed to fetch change requests:', err);
-        setError(err.message || 'Failed to fetch change requests');
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchRequests();
-  }
-}, [activeView]);
+  useEffect(() => {
+    if (isHR || isDeptHead || isSystemAdmin) {
+      loadEmployees();
+    }
+  }, [roles]); // run after roles are set
+
+  useEffect(() => {
+    if (activeView === 'change-requests') {
+      const fetchRequests = async () => {
+        setLoading(true);
+        try {
+          const data = await api.getAllChangeRequests();
+          console.log('Change Requests fetched:', data);
+          setChangeRequests(data);
+        } catch (err: any) {
+          console.error('Failed to fetch change requests:', err);
+          setError(err.message || 'Failed to fetch change requests');
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchRequests();
+    }
+  }, [activeView]);
 
   const loadEmployees = async () => {
     setLoading(true);
-    setError(null);
+    setError('');
     try {
       const data = await api.getAllEmployees();
       setEmployees(data);
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to fetch employees');
     } finally {
@@ -128,36 +289,18 @@ useEffect(() => {
     }
   };
 
-  // const fetchChangeRequests = async () => {
-  //   setLoading(true);
-  //   try {
-  //     // setChangeRequests([
-  //     //   { requestId: 'REQ-1', employeeProfileId: { firstName: 'John', lastName: 'Doe' }, requestDescription: 'Update address', status: 'PENDING', submittedAt: new Date() },
-  //     //   { requestId: 'REQ-2', employeeProfileId: { firstName: 'Jane', lastName: 'Smith' }, requestDescription: 'Change email', status: 'APPROVED', submittedAt: new Date() }
-  //     // ]);
-  //     const res = await fetch('/api/employee-profile/change-requests/all');
-  //     const data = await res.json();
-  //     setChangeRequests(data);
-      
-  //   } catch (err) {
-  //     setError('Failed to fetch change requests');
-  //   } finally {
-  //     setLoading(false);
-  //   }
-  // };
   const fetchChangeRequests = async () => {
-  setLoading(true);
-  try {
-    const data = await api.getAllChangeRequests();
-    console.log(data);
-    setChangeRequests(data);
-  } catch (err) {
-    setError(err.message || 'Failed to fetch change requests');
-  } finally {
-    setLoading(false);
-  }
-};
-
+    setLoading(true);
+    try {
+      const data = await api.getAllChangeRequests();
+      console.log(data);
+      setChangeRequests(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to fetch change requests');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const fetchMyProfile = async () => {
     try {
@@ -168,34 +311,163 @@ useEffect(() => {
     }
   };
 
-  // Form handlers
-  const createEmployee = async (e) => { e.preventDefault(); try { setSuccess('Employee created successfully'); setEmployeeForm({ firstName: '', lastName: '', email: '', phone: '', position: '' }); fetchEmployees(); } catch { setError('Failed to create employee'); } };
-  const createCandidate = async (e) => { e.preventDefault(); try { setSuccess('Candidate created successfully'); setCandidateForm({ firstName: '', lastName: '', email: '', phone: '' }); } catch { setError('Failed to create candidate'); } };
-  const updateSelfProfile = async (e) => { e.preventDefault(); try { setSuccess('Profile updated successfully'); fetchMyProfile(); } catch { setError('Failed to update profile'); } };
-  const submitChangeRequest = async (e) => { e.preventDefault(); try { setSuccess('Change request submitted'); setChangeRequestForm({ requestDescription: '', reason: '' }); } catch { setError('Failed to submit change request'); } };
-  //const reviewChangeRequest = async (requestId, approve) => { try { setSuccess(`Change request ${approve ? 'approved' : 'rejected'}`); fetchChangeRequests(); } catch { setError('Failed to review change request'); } };
-const reviewChangeRequest = async (requestId, approve) => {
+  const createEmployee = async (e: React.FormEvent) => { 
+    e.preventDefault(); 
+    try { 
+      setSuccess('Employee created successfully'); 
+      setEmployeeForm({ firstName: '', lastName: '', email: '', phone: '', position: '' }); 
+      loadEmployees(); 
+    } catch { 
+      setError('Failed to create employee'); 
+    } 
+  };
+  
+  const createCandidate = async (e: React.FormEvent) => { 
+    e.preventDefault(); 
+    try {
+      await api.createCandidate(candidateForm);
+      setSuccess('Candidate created successfully'); 
+      setCandidateForm({ firstName: '', lastName: '', email: '', phone: '', password: '', role: SystemRole.JOB_CANDIDATE, nationalId: ''  }); 
+    } catch (err: any) {
+      setError(err.message || 'Failed to create candidate'); 
+    } 
+  };
+  
+  // const updateSelfProfile = async (e: React.FormEvent) => { 
+  //   e.preventDefault(); 
+  //   try { 
+  //     setSuccess('Profile updated successfully'); 
+  //     fetchMyProfile(); 
+  //   } catch { 
+  //     setError('Failed to update profile'); 
+  //   } 
+  // };
+//   const updateSelfProfile = async (e: React.FormEvent) => {
+//   e.preventDefault();
+
+//   try {
+//     const res = await fetch(
+//       `http://localhost:5000/employee-profile/${profile.employeeNumber}/my-profile/immediate`,
+//       {
+//         method: 'PUT',
+//         headers: {
+//           'Content-Type': 'application/json',
+//         },
+//         credentials: 'include', // IMPORTANT for JWT cookies
+//         body: JSON.stringify({
+//           biography,
+//           address,
+//           personalEmail,
+//           mobilePhone,
+//           profilePictureUrl,
+//         }),
+//       }
+//     );
+
+//     if (!res.ok) {
+//       throw new Error('Update failed');
+//     }
+
+//     setSuccess('Profile updated successfully');
+//     await fetchMyProfile(); // now this makes sense
+//   } catch (err) {
+//     console.error(err);
+//     setError('Failed to update profile');
+//   }
+// };
+    const updateSelfProfile = async (e: React.FormEvent) => {
+      e.preventDefault();
+
+      if (!myProfile?.employeeNumber) {
+        setError('Employee number not loaded');
+        return;
+      }
+
+      try {
+        await api.updateSelfImmediate(myProfile.employeeNumber, {
+          profilePictureUrl: selfUpdateForm.profilePictureUrl || undefined,
+          biography: selfUpdateForm.biography || undefined,
+          personalEmail: selfUpdateForm.personalEmail || undefined,
+          mobilePhone: selfUpdateForm.mobilePhone || undefined,
+          address: {
+        streetAddress: selfUpdateForm.address.streetAddress || undefined,
+        city: selfUpdateForm.address.city || undefined,
+        country: selfUpdateForm.address.country || undefined,
+      },
+        });
+
+        setSuccess('Profile updated successfully');
+        await fetchMyProfile();
+      } catch (err: any) {
+        console.error(err);
+        setError(err.message || 'Failed to update profile');
+      }
+    };
+
+
+  
+  // const submitChangeRequest = async (e: React.FormEvent) => { 
+  //   e.preventDefault(); 
+  //   try { 
+  //     setSuccess('Change request submitted'); 
+  //     setChangeRequestForm({ requestDescription: '', reason: '' }); 
+  //   } catch { 
+  //     setError('Failed to submit change request'); 
+  //   } 
+  // };
+  const submitChangeRequest = async (e: React.FormEvent) => {
+  e.preventDefault();
+  setCrSuccess('');
+  setCrError('');
+
   try {
-    await api.reviewChangeRequest(requestId, { approved: approve });
-    setSuccess(`Change request ${approve ? 'approved' : 'rejected'}`);
-    
-    // Refetch change requests after review
+    await api.createProfileChangeRequest(
+      myProfile?.employeeNumber || '',
+      changeRequest
+    );
+
+    setCrSuccess('Change request submitted successfully');
+
+    setChangeRequest({
+      requestDescription: '',
+      reason: '',
+    });
+  } catch (err) {
+    setCrError('Failed to submit change request');
+  }
+};
+
+
+  const reviewChangeRequest = async (requestId: string, action: 'APPROVED' | 'REJECTED' | 'CANCELED') => {
+  try {
+    // Call your API with the action string
+    await api.reviewChangeRequest(requestId, { action });
+
+    setSuccess(`Change request ${action.toLowerCase()}`);
+
+    // Refresh the change requests list
     const updatedRequests = await api.getAllChangeRequests();
     console.log('Updated Change Requests:', updatedRequests);
     setChangeRequests(updatedRequests);
-  } catch (err) {
+  } catch (err: any) {
     console.error('Failed to review change request:', err);
     setError(err.message || 'Failed to review change request');
   }
 };
+
   const filteredEmployees = employees.filter(emp =>
     emp.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.employeeNumber?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const StatusBadge = ({ status }) => {
-    const styles = { PENDING: 'badge-pending', APPROVED: 'badge-approved', REJECTED: 'badge-rejected' };
+  const StatusBadge: React.FC<{ status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' }> = ({ status }) => {
+    const styles: Record<string, string> = { 
+      PENDING: 'badge-pending', 
+      APPROVED: 'badge-approved', 
+      REJECTED: 'badge-rejected',
+      CANCELLED: 'badge-cancelled'
+    };
     return <span className={`badge ${styles[status]}`}>{status}</span>;
   };
 
@@ -444,9 +716,6 @@ const reviewChangeRequest = async (requestId, approve) => {
           Employee Profile Dashboard
         </h1>
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          {/* <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
-            {currentUser.employeeNumber} | {currentUser.roles.join(', ')}
-          </span> */}
           <span style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
             {myProfile?.employeeNumber || 'Loading...'} | {roles.length ? roles.join(', ') : 'Loading...'}
           </span>
@@ -489,7 +758,7 @@ const reviewChangeRequest = async (requestId, approve) => {
               My Profile
             </div>
 
-            {(isHR || isDeptHead) && (
+            {(isHRManager || isDeptHead || isSystemAdmin) && (
               <div 
                 className={`sidebar-item ${activeView === 'employees' ? 'active' : ''}`}
                 onClick={() => setActiveView('employees')}
@@ -499,16 +768,19 @@ const reviewChangeRequest = async (requestId, approve) => {
               </div>
             )}
 
-            {isHR && (
+            {isRecruiter &&(
               <>
-                <div 
-                  className={`sidebar-item ${activeView === 'create-employee' ? 'active' : ''}`}
-                  onClick={() => setActiveView('create-employee')}
+              <div 
+                  className={`sidebar-item ${activeView === 'create-candidate' ? 'active' : ''}`}
+                  onClick={() => setActiveView('create-candidate')}
                 >
                   <UserPlus size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
-                  Create Employee
+                  Create Candidate
                 </div>
-
+                </>
+            )}
+            {isHR && (
+              <>
                 <div 
                   className={`sidebar-item ${activeView === 'change-requests' ? 'active' : ''}`}
                   onClick={() => setActiveView('change-requests')}
@@ -519,7 +791,8 @@ const reviewChangeRequest = async (requestId, approve) => {
               </>
             )}
 
-            {hasRole('RECRUITER') && (
+
+            {hasRole('HR Manager') && (
               <div 
                 className={`sidebar-item ${activeView === 'create-candidate' ? 'active' : ''}`}
                 onClick={() => setActiveView('create-candidate')}
@@ -529,7 +802,7 @@ const reviewChangeRequest = async (requestId, approve) => {
               </div>
             )}
 
-            {(isDeptEmployee || hasRole('HR_EMPLOYEE')) && (
+            {/* {(isDeptEmployee || isHREmployee) && (
               <div 
                 className={`sidebar-item ${activeView === 'submit-change' ? 'active' : ''}`}
                 onClick={() => setActiveView('submit-change')}
@@ -537,7 +810,7 @@ const reviewChangeRequest = async (requestId, approve) => {
                 <FileText size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
                 Request Changes
               </div>
-            )}
+            )} */}
           </nav>
         </div>
 
@@ -549,6 +822,7 @@ const reviewChangeRequest = async (requestId, approve) => {
             <div>
               <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Dashboard Overview</h2>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
+                {isHR && (
                 <div className="stat-card">
                   <Users size={32} style={{ marginBottom: '0.5rem' }} />
                   <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
@@ -556,6 +830,7 @@ const reviewChangeRequest = async (requestId, approve) => {
                   </div>
                   <div style={{ opacity: 0.9 }}>Total Employees</div>
                 </div>
+                )}
 
                 {isHR && (
                   <div className="stat-card-warning">
@@ -567,6 +842,7 @@ const reviewChangeRequest = async (requestId, approve) => {
                   </div>
                 )}
 
+                {isHR && (
                 <div className="stat-card-success">
                   <CheckCircle size={32} style={{ marginBottom: '0.5rem' }} />
                   <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
@@ -574,6 +850,7 @@ const reviewChangeRequest = async (requestId, approve) => {
                   </div>
                   <div style={{ opacity: 0.9 }}>Approved Requests</div>
                 </div>
+                )}
               </div>
 
               <div className="card" style={{ marginTop: '2rem' }}>
@@ -582,11 +859,15 @@ const reviewChangeRequest = async (requestId, approve) => {
                   <button className="btn-primary" onClick={() => setActiveView('my-profile')}>
                     View My Profile
                   </button>
+                  {isRecruiter && (
+                    <>
+                      <button className="btn-primary" onClick={() => setActiveView('create-candidate')}>
+                        Create Candidate
+                      </button>
+                    </>
+                  )}
                   {isHR && (
                     <>
-                      <button className="btn-primary" onClick={() => setActiveView('create-employee')}>
-                        Create Employee
-                      </button>
                       <button className="btn-secondary" onClick={() => setActiveView('change-requests')}>
                         Review Requests
                       </button>
@@ -617,8 +898,38 @@ const reviewChangeRequest = async (requestId, approve) => {
                   <div>
                     <strong>Personal Email:</strong> {myProfile.personalEmail || 'N/A'}
                   </div>
-                  <div>
-                    <strong>City:</strong> {myProfile.address?.city || 'N/A'}
+                   {/* Address Section */}
+                  <div
+                    style={{
+                      gridColumn: 'span 2',
+                      border: '1px solid var(--border-light)',
+                      borderRadius: '0.75rem',
+                      padding: '1rem',
+                      backgroundColor: 'var(--bg-secondary)',
+                    }}
+                  >
+                    <strong
+                      style={{
+                        display: 'block',
+                        marginBottom: '0.75rem',
+                        color: 'var(--text-secondary)',
+                      }}
+                    >
+                      Address
+                    </strong>
+
+                    <div style={{ marginBottom: '0.25rem' }}>
+                      <strong>Street:</strong>{' '}
+                      {myProfile.address?.streetAddress || 'N/A'}
+                    </div>
+
+                    <div style={{ marginBottom: '0.25rem' }}>
+                      <strong>City:</strong> {myProfile.address?.city || 'N/A'}
+                    </div>
+
+                    <div>
+                      <strong>Country:</strong> {myProfile.address?.country || 'N/A'}
+                    </div>
                   </div>
                   <div style={{ gridColumn: 'span 2' }}>
                     <strong>Biography:</strong> {myProfile.biography || 'No biography set'}
@@ -655,19 +966,87 @@ const reviewChangeRequest = async (requestId, approve) => {
                         onChange={(e) => setSelfUpdateForm({...selfUpdateForm, mobilePhone: e.target.value})}
                       />
                     </div>
-                    <div className="form-group">
-                      <label className="form-label">City</label>
-                      <input 
-                        className="form-input"
-                        value={selfUpdateForm.address.city}
-                        onChange={(e) => setSelfUpdateForm({...selfUpdateForm, address: {...selfUpdateForm.address, city: e.target.value}})}
-                      />
+                    {/* Address Section */}
+                    <div
+                      style={{
+                        gridColumn: 'span 2',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: '0.75rem',
+                        padding: '1rem',
+                        marginTop: '0.5rem',
+                        backgroundColor: 'var(--bg-secondary)',
+                      }}
+                    >
+                      <h4
+                        style={{
+                          marginBottom: '1rem',
+                          color: 'var(--text-secondary)',
+                          fontSize: '0.95rem',
+                          fontWeight: 600,
+                        }}
+                      >
+                        Address
+                      </h4>
+
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                        <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                          <label className="form-label">Street Address</label>
+                          <input
+                            className="form-input"
+                            value={selfUpdateForm.address.streetAddress}
+                            onChange={(e) =>
+                              setSelfUpdateForm({
+                                ...selfUpdateForm,
+                                address: {
+                                  ...selfUpdateForm.address,
+                                  streetAddress: e.target.value,
+                                },
+                              })
+                            }
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">City</label>
+                          <input
+                            className="form-input"
+                            value={selfUpdateForm.address.city}
+                            onChange={(e) =>
+                              setSelfUpdateForm({
+                                ...selfUpdateForm,
+                                address: {
+                                  ...selfUpdateForm.address,
+                                  city: e.target.value,
+                                },
+                              })
+                            }
+                          />
+                        </div>
+
+                        <div className="form-group">
+                          <label className="form-label">Country</label>
+                          <input
+                            className="form-input"
+                            value={selfUpdateForm.address.country}
+                            onChange={(e) =>
+                              setSelfUpdateForm({
+                                ...selfUpdateForm,
+                                address: {
+                                  ...selfUpdateForm.address,
+                                  country: e.target.value,
+                                },
+                              })
+                            }
+                          />
+                        </div>
+                      </div>
                     </div>
+
                     <div className="form-group" style={{ gridColumn: 'span 2' }}>
                       <label className="form-label">Biography</label>
                       <textarea 
                         className="form-input"
-                        rows="3"
+                        rows={3}
                         value={selfUpdateForm.biography}
                         onChange={(e) => setSelfUpdateForm({...selfUpdateForm, biography: e.target.value})}
                       />
@@ -678,9 +1057,45 @@ const reviewChangeRequest = async (requestId, approve) => {
                   </button>
                 </form>
               </div>
+              
+              {/* Submit Change Request - BELOW Update Profile */}
+              { (isDeptEmployee || isHREmployee )&& (  
+              <div className="card" style={{ marginTop: '1.5rem' }}>
+                <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Request Profile Changes</h3>
+                <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                  Submit a request for critical profile changes that require HR approval.
+                </p>
+                <form onSubmit={submitChangeRequest}>
+                  <div className="form-group">
+                    <label className="form-label">Change Description *</label>
+                    <textarea 
+                      className="form-input"
+                      rows={3}
+                      required
+                      placeholder="Describe the changes you want to make..."
+                      value={changeRequest.requestDescription}
+                      onChange={(e) => setChangeRequest({...changeRequest, requestDescription: e.target.value})}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Reason *</label>
+                    <textarea 
+                      className="form-input"
+                      rows={3}
+                      required
+                      placeholder="Explain why these changes are needed..."
+                      value={changeRequest.reason}
+                      onChange={(e) => setChangeRequest({...changeRequest, reason: e.target.value})}
+                    />
+                  </div>
+                  <button type="submit" className="btn-primary">
+                    Submit Request
+                  </button>
+                </form>
+              </div>
+              )}
             </div>
           )}
-
           {/* Employee List */}
           {activeView === 'employees' && (
             <div>
@@ -715,7 +1130,7 @@ const reviewChangeRequest = async (requestId, approve) => {
                       <tr key={emp._id}>
                         <td>{emp.employeeNumber}</td>
                         <td>{emp.firstName} {emp.lastName}</td>
-                        <td>{emp.email}</td>
+                        <td>{emp.workEmail}</td>
                         <td>
                           <button 
                             className="btn-secondary" 
@@ -733,7 +1148,7 @@ const reviewChangeRequest = async (requestId, approve) => {
             </div>
           )}
 
-          {/* Create Employee */}
+          {/* Create Employee
           {activeView === 'create-employee' && isHR && (
             <div>
               <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Create New Employee</h2>
@@ -791,7 +1206,91 @@ const reviewChangeRequest = async (requestId, approve) => {
                 </form>
               </div>
             </div>
-          )}
+          )} */}
+{/* Create Candidate */}
+{activeView === 'create-candidate' && hasRole('Recruiter') && (
+  <div>
+    <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Add New Candidate</h2>
+    <div className="card">
+      <form onSubmit={createCandidate}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+          <div className="form-group">
+            <label className="form-label">First Name *</label>
+            <input 
+              className="form-input"
+              required
+              value={candidateForm.firstName}
+              onChange={(e) => setCandidateForm({...candidateForm, firstName: e.target.value})}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Last Name *</label>
+            <input 
+              className="form-input"
+              required
+              value={candidateForm.lastName}
+              onChange={(e) => setCandidateForm({...candidateForm, lastName: e.target.value})}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Email *</label>
+            <input 
+              className="form-input"
+              type="email"
+              required
+              value={candidateForm.email}
+              onChange={(e) => setCandidateForm({...candidateForm, email: e.target.value})}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Phone</label>
+            <input 
+              className="form-input"
+              value={candidateForm.phone}
+              onChange={(e) => setCandidateForm({...candidateForm, phone: e.target.value})}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">Password *</label>
+            <input 
+              className="form-input"
+              type="password"
+              required
+              value={candidateForm.password}
+              onChange={(e) => setCandidateForm({...candidateForm, password: e.target.value})}
+            />
+          </div>
+          <div className="form-group">
+            <label className="form-label">National ID *</label>
+            <input
+              className="form-input"
+              required
+              value={candidateForm.nationalId}
+              onChange={(e) => setCandidateForm({ ...candidateForm, nationalId: e.target.value })}
+            />
+          </div>
+
+          <div className="form-group">
+            <label className="form-label">Role *</label>
+            <select
+              className="form-input"
+              required
+              value={candidateForm.role}
+              onChange={(e) => setCandidateForm({...candidateForm, role: e.target.value as SystemRole})}
+            >
+              {Object.values(SystemRole).map(role => (
+                <option key={role} value={role}>{role.replace('_', ' ')}</option>
+              ))}
+            </select>
+          </div>
+        </div>
+        <button type="submit" className="btn-primary" style={{ marginTop: '1rem' }}>
+          Add Candidate
+        </button>
+      </form>
+    </div>
+  </div>
+)}
 
           {/* Create Candidate */}
           {activeView === 'create-candidate' && hasRole('RECRUITER') && (
@@ -836,6 +1335,38 @@ const reviewChangeRequest = async (requestId, approve) => {
                         onChange={(e) => setCandidateForm({...candidateForm, phone: e.target.value})}
                       />
                     </div>
+                    <div className="form-group">
+                      <label className="form-label">Password *</label>
+                      <input 
+                        className="form-input"
+                        type="password"
+                        required
+                        value={candidateForm.password}
+                        onChange={(e) => setCandidateForm({...candidateForm, password: e.target.value})}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Role *</label>
+                      <select
+                        className="form-input"
+                        required
+                        value={candidateForm.role}
+                        onChange={(e) => setCandidateForm({...candidateForm, role: e.target.value as SystemRole})}
+                      >
+                        <option value={SystemRole.JOB_CANDIDATE}>Job Candidate</option>
+                        <option value={SystemRole.DEPARTMENT_EMPLOYEE}>Department Employee</option>
+                        <option value={SystemRole.DEPARTMENT_HEAD}>Department Head</option>
+                        <option value={SystemRole.HR_MANAGER}>HR Manager</option>
+                        <option value={SystemRole.HR_EMPLOYEE}>HR Employee</option>
+                        <option value={SystemRole.HR_ADMIN}>HR Admin</option>
+                        <option value={SystemRole.PAYROLL_SPECIALIST}>Payroll Specialist</option>
+                        <option value={SystemRole.PAYROLL_MANAGER}>Payroll Manager</option>
+                        <option value={SystemRole.SYSTEM_ADMIN}>System Admin</option>
+                        <option value={SystemRole.LEGAL_POLICY_ADMIN}>Legal & Policy Admin</option>
+                        <option value={SystemRole.RECRUITER}>Recruiter</option>
+                        <option value={SystemRole.FINANCE_STAFF}>Finance Staff</option>
+                      </select>
+                    </div>
                   </div>
                   <button type="submit" className="btn-primary" style={{ marginTop: '1rem' }}>
                     Add Candidate
@@ -846,7 +1377,7 @@ const reviewChangeRequest = async (requestId, approve) => {
           )}
 
           {/* Change Requests List */}
-          {activeView === 'change-requests' && isHR && (
+          {activeView === 'change-requests' && (isHR || isHREmployee) && (
             <div>
               <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Profile Change Requests</h2>
               <div className="card">
@@ -863,43 +1394,51 @@ const reviewChangeRequest = async (requestId, approve) => {
                   </thead>
                   <tbody>
                     {changeRequests.map(req => (
-                      <tr key={req.requestId}>
-                        <td>{req.requestId}</td>
-                        <td>
-                          {req.employeeProfileId?.firstName} {req.employeeProfileId?.lastName}
-                        </td>
-                        <td>{req.requestDescription}</td>
-                        <td><StatusBadge status={req.status} /></td>
-                        <td>{new Date(req.submittedAt).toLocaleDateString()}</td>
-                        <td>
-                          {req.status === 'PENDING' && (
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
-                              <button 
-                                className="btn-success"
-                                style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-                                onClick={() => reviewChangeRequest(req.requestId, true)}
-                              >
-                                Approve
-                              </button>
-                              <button 
-                                className="btn-danger"
-                                style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-                                onClick={() => reviewChangeRequest(req.requestId, false)}
-                              >
-                                Reject
-                              </button>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
+                    <tr key={req.requestId}>
+                      <td>{req.requestId}</td>
+                      <td>
+                        {req.employeeProfileId?.firstName} {req.employeeProfileId?.lastName}
+                      </td>
+                      <td>{req.requestDescription}</td>
+                      <td><StatusBadge status={req.status} /></td>
+                      <td>{new Date(req.submittedAt).toLocaleDateString()}</td>
+                      <td>
+                        {req.status === 'PENDING' && (
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button 
+                              className="btn-success"
+                              style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                              onClick={() => reviewChangeRequest(req.requestId, 'APPROVED')}
+                            >
+                              Approve
+                            </button>
+                            <button 
+                              className="btn-danger"
+                              style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                              onClick={() => reviewChangeRequest(req.requestId, 'REJECTED')}
+                            >
+                              Reject
+                            </button>
+                            <button 
+                              className="btn-secondary"
+                              style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                              onClick={() => reviewChangeRequest(req.requestId, 'CANCELED')}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+
                   </tbody>
                 </table>
               </div>
             </div>
           )}
 
-          {/* Submit Change Request */}
+          {/* Submit Change Request
           {activeView === 'submit-change' && (
             <div>
               <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Request Profile Changes</h2>
@@ -912,7 +1451,7 @@ const reviewChangeRequest = async (requestId, approve) => {
                     <label className="form-label">Change Description *</label>
                     <textarea 
                       className="form-input"
-                      rows="3"
+                      rows={3}
                       required
                       placeholder="Describe the changes you want to make..."
                       value={changeRequestForm.requestDescription}
@@ -923,7 +1462,7 @@ const reviewChangeRequest = async (requestId, approve) => {
                     <label className="form-label">Reason *</label>
                     <textarea 
                       className="form-input"
-                      rows="3"
+                      rows={3}
                       required
                       placeholder="Explain why these changes are needed..."
                       value={changeRequestForm.reason}
@@ -936,7 +1475,7 @@ const reviewChangeRequest = async (requestId, approve) => {
                 </form>
               </div>
             </div>
-          )}
+          )} */}
         </div>
       </div>
 
