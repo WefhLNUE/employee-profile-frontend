@@ -11,9 +11,11 @@ import type {
   ChangeRequestForm,
   SelfUpdateForm,
   APIResponse,
-} from '@/types/employee-profile.types';
-// import {EmployeeProfile} from '@/'
-import { SystemRole } from '@/types/employee-profile.types';
+} from '@/app/employee-profile/types/employee-profile.types';
+// import { useNavigate } from 'react-router-dom';
+import { useRouter } from 'next/navigation'; // Next.js 13+ app directory
+
+import { SystemRole } from './types/employee-profile.types';
 
 // API Service
 class APIService {
@@ -181,6 +183,11 @@ const EmployeeProfileDashboard: React.FC = () => {
     roles: ['HR_MANAGER'], 
     primaryDepartmentId: '507f1f77bcf86cd799439011' 
   });
+  // const navigate = useNavigate();
+  const router = useRouter();
+  const goToDetails = (requestId: string) => {
+    router.push(`/employee-profile/change-request/${requestId}`);
+  };
 
   const [candidateForm, setCandidateForm] = useState<CandidateForm>({ 
     firstName: '', 
@@ -1425,6 +1432,12 @@ const EmployeeProfileDashboard: React.FC = () => {
                               onClick={() => reviewChangeRequest(req.requestId, 'CANCELED')}
                             >
                               Cancel
+                            </button>
+                            <button
+                                className="btn-info"
+                                onClick={() => goToDetails(req.requestId)}
+                              >
+                                See Details
                             </button>
                           </div>
                         )}
