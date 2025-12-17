@@ -128,7 +128,6 @@ class APIService {
     );
   }
 
-  
   createCandidate(data: CandidateForm): Promise<any> { 
     const payload = {
       firstName: data.firstName,
@@ -239,13 +238,16 @@ const EmployeeProfileDashboard: React.FC = () => {
       const profile = await api.getMyProfile(currentUser.employeeNumber);
       setMyProfile(profile);
 
+      if(isHR || isHREmployee){
+        const requests = await api.getAllChangeRequests();
+        setChangeRequests(requests);
+      }
       // Optionally, fetch change requests immediately
-      const requests = await api.getAllChangeRequests();
-      setChangeRequests(requests);
+      
 
       console.log('Current logged-in user profile:', profile);
       console.log('Current logged-in user roles:', data.roles || [data.role]);
-      console.log('Initial change requests:', requests);
+      // console.log('Initial change requests:', requests);
     } catch (err: any) {
       console.error('Failed to fetch initial data:', err);
       setError(err.message || 'Failed to fetch initial data');
@@ -748,23 +750,13 @@ const EmployeeProfileDashboard: React.FC = () => {
             )}
 
 
-            {hasRole('HR Manager') && (
+            {/* {hasRole('Recruiter') && (
               <div 
                 className={`sidebar-item ${activeView === 'create-candidate' ? 'active' : ''}`}
                 onClick={() => setActiveView('create-candidate')}
               >
                 <UserPlus size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
                 Add Candidate
-              </div>
-            )}
-
-            {/* {(isDeptEmployee || isHREmployee) && (
-              <div 
-                className={`sidebar-item ${activeView === 'submit-change' ? 'active' : ''}`}
-                onClick={() => setActiveView('submit-change')}
-              >
-                <FileText size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
-                Request Changes
               </div>
             )} */}
           </nav>
@@ -1173,92 +1165,92 @@ const EmployeeProfileDashboard: React.FC = () => {
               </div>
             </div>
           )} */}
-{/* Create Candidate */}
-{activeView === 'create-candidate' && hasRole('Recruiter') && (
-  <div>
-    <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Add New Candidate</h2>
-    <div className="card">
-      <form onSubmit={createCandidate}>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-          <div className="form-group">
-            <label className="form-label">First Name *</label>
-            <input 
-              className="form-input"
-              required
-              value={candidateForm.firstName}
-              onChange={(e) => setCandidateForm({...candidateForm, firstName: e.target.value})}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Last Name *</label>
-            <input 
-              className="form-input"
-              required
-              value={candidateForm.lastName}
-              onChange={(e) => setCandidateForm({...candidateForm, lastName: e.target.value})}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Email *</label>
-            <input 
-              className="form-input"
-              type="email"
-              required
-              value={candidateForm.email}
-              onChange={(e) => setCandidateForm({...candidateForm, email: e.target.value})}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Phone</label>
-            <input 
-              className="form-input"
-              value={candidateForm.phone}
-              onChange={(e) => setCandidateForm({...candidateForm, phone: e.target.value})}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">Password *</label>
-            <input 
-              className="form-input"
-              type="password"
-              required
-              value={candidateForm.password}
-              onChange={(e) => setCandidateForm({...candidateForm, password: e.target.value})}
-            />
-          </div>
-          <div className="form-group">
-            <label className="form-label">National ID *</label>
-            <input
-              className="form-input"
-              required
-              value={candidateForm.nationalId}
-              onChange={(e) => setCandidateForm({ ...candidateForm, nationalId: e.target.value })}
-            />
-          </div>
+        {/* Create Candidate */}
+        {activeView === 'create-candidate' && hasRole('Recruiter') && (
+          <div>
+            <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Add New Candidate</h2>
+            <div className="card">
+              <form onSubmit={createCandidate}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                  <div className="form-group">
+                    <label className="form-label">First Name *</label>
+                    <input 
+                      className="form-input"
+                      required
+                      value={candidateForm.firstName}
+                      onChange={(e) => setCandidateForm({...candidateForm, firstName: e.target.value})}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Last Name *</label>
+                    <input 
+                      className="form-input"
+                      required
+                      value={candidateForm.lastName}
+                      onChange={(e) => setCandidateForm({...candidateForm, lastName: e.target.value})}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Email *</label>
+                    <input 
+                      className="form-input"
+                      type="email"
+                      required
+                      value={candidateForm.email}
+                      onChange={(e) => setCandidateForm({...candidateForm, email: e.target.value})}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Phone</label>
+                    <input 
+                      className="form-input"
+                      value={candidateForm.phone}
+                      onChange={(e) => setCandidateForm({...candidateForm, phone: e.target.value})}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">Password *</label>
+                    <input 
+                      className="form-input"
+                      type="password"
+                      required
+                      value={candidateForm.password}
+                      onChange={(e) => setCandidateForm({...candidateForm, password: e.target.value})}
+                    />
+                  </div>
+                  <div className="form-group">
+                    <label className="form-label">National ID *</label>
+                    <input
+                      className="form-input"
+                      required
+                      value={candidateForm.nationalId}
+                      onChange={(e) => setCandidateForm({ ...candidateForm, nationalId: e.target.value })}
+                    />
+                  </div>
 
-          <div className="form-group">
-            <label className="form-label">Role *</label>
-            <select
-              className="form-input"
-              required
-              value={candidateForm.role}
-              onChange={(e) => setCandidateForm({...candidateForm, role: e.target.value as SystemRole})}
-            >
-              {Object.values(SystemRole).map(role => (
-                <option key={role} value={role}>{role.replace('_', ' ')}</option>
-              ))}
-            </select>
+                  <div className="form-group">
+                    <label className="form-label">Role *</label>
+                    <select
+                      className="form-input"
+                      required
+                      value={candidateForm.role}
+                      onChange={(e) => setCandidateForm({...candidateForm, role: e.target.value as SystemRole})}
+                    >
+                      <option value={SystemRole.JOB_CANDIDATE}>
+                        {SystemRole.JOB_CANDIDATE.replace('_', ' ')}
+                      </option>
+                    </select>
+                  </div>
+                </div>
+                <button type="submit" className="btn-primary" style={{ marginTop: '1rem' }}>
+                  Add Candidate
+                </button>
+              </form>
+            </div>
           </div>
-        </div>
-        <button type="submit" className="btn-primary" style={{ marginTop: '1rem' }}>
-          Add Candidate
-        </button>
-      </form>
-    </div>
-  </div>
-)}
+        )}
 
-          {/* Create Candidate */}
+          {/* Create Candidate
           {activeView === 'create-candidate' && hasRole('RECRUITER') && (
             <div>
               <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Add New Candidate</h2>
@@ -1340,7 +1332,7 @@ const EmployeeProfileDashboard: React.FC = () => {
                 </form>
               </div>
             </div>
-          )}
+          )} */}
 
           {/* Change Requests List */}
           {activeView === 'change-requests' && (isHR || isHREmployee) && (
