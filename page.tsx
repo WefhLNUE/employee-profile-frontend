@@ -12,8 +12,9 @@ import type {
   SelfUpdateForm,
   APIResponse,
 } from '@/app/employee-profile/types/employee-profile.types';
-// import { useNavigate } from 'react-router-dom';
-import { useRouter } from 'next/navigation'; // Next.js 13+ app directory
+import { useRouter } from 'next/navigation';
+import { RefreshCw } from 'lucide-react';
+
 
 import { SystemRole } from './types/employee-profile.types';
 
@@ -93,12 +94,6 @@ class APIService {
     return this.request<Employee[]>('/employee-profile/my-employees'); 
   }
   
-  // createChangeRequest(employeeNumber: string, data: ChangeRequestForm): Promise<ChangeRequest> { 
-  //   return this.request<ChangeRequest>(`/employee-profile/${employeeNumber}/my-profile/change-request`, { 
-  //     method: 'POST', 
-  //     body: JSON.stringify(data) 
-  //   }); 
-  // }
   async createProfileChangeRequest(
   employeeNumber: string,
   data: {
@@ -135,7 +130,6 @@ class APIService {
 
   
   createCandidate(data: CandidateForm): Promise<any> { 
-    // Map frontend form fields to backend DTO format
     const payload = {
       firstName: data.firstName,
       lastName: data.lastName,
@@ -143,8 +137,8 @@ class APIService {
       workEmail: data.email,
       mobilePhone: data.phone,
       password: data.password,
-      nationalId: data.nationalId, // ✅ THIS WAS MISSING
-      roles: [data.role], // Backend expects an array of roles,
+      nationalId: data.nationalId,
+      roles: [data.role],
     };
     return this.request<any>('/employee-profile/candidate', { 
       method: 'POST', 
@@ -183,7 +177,6 @@ const EmployeeProfileDashboard: React.FC = () => {
     roles: ['HR_MANAGER'], 
     primaryDepartmentId: '507f1f77bcf86cd799439011' 
   });
-  // const navigate = useNavigate();
   const router = useRouter();
   const goToDetails = (requestId: string) => {
     router.push(`/employee-profile/change-request/${requestId}`);
@@ -196,7 +189,7 @@ const EmployeeProfileDashboard: React.FC = () => {
     phone: '',
     password: '',
     role: SystemRole.JOB_CANDIDATE,
-      nationalId: '', // <-- added
+    nationalId: '',
 
   });
   
@@ -208,10 +201,6 @@ const EmployeeProfileDashboard: React.FC = () => {
     position: ''
   });
   
-  // const [changeRequestForm, setChangeRequestForm] = useState<ChangeRequestForm>({ 
-  //   requestDescription: '', 
-  //   reason: '' 
-  // });
   const [changeRequest, setChangeRequest] = useState({
     requestDescription: '',
     reason: '',
@@ -239,23 +228,33 @@ const EmployeeProfileDashboard: React.FC = () => {
   const isSystemAdmin = hasRole('System Admin');
 
   useEffect(() => {
-    const fetchRoles = async () => {
-      try {
-        const data = await api.getMyRole();
-        setRoles(data.roles || [data.role]);
-        setRole(data.role);
-      } catch (err) {
-        console.error(err);
-        setError('Failed to fetch roles');
-      }
-    };
-    fetchRoles();
-    fetchMyProfile();
-    
-    //loadEmployees();
-  }, []);
-  console.log('Current logged-in user profile:', myProfile);
-  console.log('Current logged-in user roles:', roles);
+  const fetchInitialData = async () => {
+    try {
+      // Fetch roles first
+      const data = await api.getMyRole();
+      setRoles(data.roles || [data.role]);
+      setRole(data.role);
+
+      // Fetch profile
+      const profile = await api.getMyProfile(currentUser.employeeNumber);
+      setMyProfile(profile);
+
+      // Optionally, fetch change requests immediately
+      const requests = await api.getAllChangeRequests();
+      setChangeRequests(requests);
+
+      console.log('Current logged-in user profile:', profile);
+      console.log('Current logged-in user roles:', data.roles || [data.role]);
+      console.log('Initial change requests:', requests);
+    } catch (err: any) {
+      console.error('Failed to fetch initial data:', err);
+      setError(err.message || 'Failed to fetch initial data');
+    }
+  };
+  fetchInitialData();
+    //   fetchChangeRequests();
+
+}, []);
 
   useEffect(() => {
     if (isHR || isDeptHead || isSystemAdmin) {
@@ -295,6 +294,7 @@ const EmployeeProfileDashboard: React.FC = () => {
       setLoading(false);
     }
   };
+
 
   const fetchChangeRequests = async () => {
     setLoading(true);
@@ -340,48 +340,6 @@ const EmployeeProfileDashboard: React.FC = () => {
     } 
   };
   
-  // const updateSelfProfile = async (e: React.FormEvent) => { 
-  //   e.preventDefault(); 
-  //   try { 
-  //     setSuccess('Profile updated successfully'); 
-  //     fetchMyProfile(); 
-  //   } catch { 
-  //     setError('Failed to update profile'); 
-  //   } 
-  // };
-//   const updateSelfProfile = async (e: React.FormEvent) => {
-//   e.preventDefault();
-
-//   try {
-//     const res = await fetch(
-//       `http://localhost:5000/employee-profile/${profile.employeeNumber}/my-profile/immediate`,
-//       {
-//         method: 'PUT',
-//         headers: {
-//           'Content-Type': 'application/json',
-//         },
-//         credentials: 'include', // IMPORTANT for JWT cookies
-//         body: JSON.stringify({
-//           biography,
-//           address,
-//           personalEmail,
-//           mobilePhone,
-//           profilePictureUrl,
-//         }),
-//       }
-//     );
-
-//     if (!res.ok) {
-//       throw new Error('Update failed');
-//     }
-
-//     setSuccess('Profile updated successfully');
-//     await fetchMyProfile(); // now this makes sense
-//   } catch (err) {
-//     console.error(err);
-//     setError('Failed to update profile');
-//   }
-// };
     const updateSelfProfile = async (e: React.FormEvent) => {
       e.preventDefault();
 
@@ -405,6 +363,7 @@ const EmployeeProfileDashboard: React.FC = () => {
 
         setSuccess('Profile updated successfully');
         await fetchMyProfile();
+        
       } catch (err: any) {
         console.error(err);
         setError(err.message || 'Failed to update profile');
@@ -412,17 +371,7 @@ const EmployeeProfileDashboard: React.FC = () => {
     };
 
 
-  
-  // const submitChangeRequest = async (e: React.FormEvent) => { 
-  //   e.preventDefault(); 
-  //   try { 
-  //     setSuccess('Change request submitted'); 
-  //     setChangeRequestForm({ requestDescription: '', reason: '' }); 
-  //   } catch { 
-  //     setError('Failed to submit change request'); 
-  //   } 
-  // };
-  const submitChangeRequest = async (e: React.FormEvent) => {
+    const submitChangeRequest = async (e: React.FormEvent) => {
   e.preventDefault();
   setCrSuccess('');
   setCrError('');
@@ -828,6 +777,16 @@ const EmployeeProfileDashboard: React.FC = () => {
           {activeView === 'overview' && (
             <div>
               <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Dashboard Overview</h2>
+              <button
+                className="btn-secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1.5rem'  }}
+                onClick={() => window.location.reload()} // refresh page
+                title="Refresh Dashboard"
+              >
+                <RefreshCw size={18} />
+                Refresh
+              </button>
+
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
                 {isHR && (
                 <div className="stat-card">
@@ -1434,7 +1393,7 @@ const EmployeeProfileDashboard: React.FC = () => {
                               Cancel
                             </button>
                             <button
-                                className="btn-info"
+                                className="btn-secondary"
                                 onClick={() => goToDetails(req.requestId)}
                               >
                                 See Details
