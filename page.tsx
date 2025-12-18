@@ -15,7 +15,6 @@ import type {
 import { useRouter } from 'next/navigation';
 import { RefreshCw } from 'lucide-react';
 
-
 import { SystemRole } from './types/employee-profile.types';
 
 // API Service
