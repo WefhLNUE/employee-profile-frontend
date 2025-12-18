@@ -88,6 +88,40 @@ export interface SelfUpdateForm {
   address: Address;
 }
 
+
+export enum ContractType {
+  FULL_TIME_CONTRACT = 'FULL_TIME_CONTRACT',
+  PART_TIME_CONTRACT = 'PART_TIME_CONTRACT',
+}
+
+export enum WorkType {
+  FULL_TIME = 'FULL_TIME',
+  PART_TIME = 'PART_TIME',
+}
+
+export enum EmployeeStatus {
+  ACTIVE = 'ACTIVE',
+  INACTIVE = 'INACTIVE',
+  ON_LEAVE = 'ON_LEAVE',
+  SUSPENDED = 'SUSPENDED',
+  RETIRED = 'RETIRED',
+  PROBATION = 'PROBATION',
+  TERMINATED = 'TERMINATED',
+}
+
+export interface UpdateEmployeeAdminForm {
+  contractStartDate?: string;
+  contractEndDate?: string;
+  contractType?: ContractType;
+  workType?: WorkType;
+  status?: EmployeeStatus;
+  statusEffectiveFrom?: string;
+  primaryPositionId?: string;
+  primaryDepartmentId?: string;
+  supervisorPositionId?: string;
+  payGradeId?: string;
+}
+
 export interface APIResponse<T> {
   data?: T;
   message?: string;
