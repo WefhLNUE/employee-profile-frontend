@@ -79,7 +79,7 @@ export default function ChangeRequestDetails() {
           )}
 
           <div style={{ marginTop: '1.5rem' }}>
-            <button className="btn-primary" onClick={() => router.back()}>Back</button>
+            <button className="btn-primary" onClick={() => router.push('/employee-profile?view=change-requests')}>Back</button>
           </div>
         </div>
       </div>

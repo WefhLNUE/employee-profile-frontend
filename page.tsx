@@ -27,11 +27,11 @@ class APIService {
   }
 
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
-    const headers = { 
-      'Content-Type': 'application/json', 
-      ...(options.headers as Record<string, string>) 
+    const headers = {
+      'Content-Type': 'application/json',
+      ...(options.headers as Record<string, string>)
     };
-    
+
     try {
       const response = await fetch(`${this.baseURL}${endpoint}`, {
         ...options,
@@ -57,64 +57,64 @@ class APIService {
     }
   }
 
-  getAllEmployees(): Promise<Employee[]> { 
-    return this.request<Employee[]>('/employee-profile'); 
+  getAllEmployees(): Promise<Employee[]> {
+    return this.request<Employee[]>('/employee-profile');
   }
-  
-  getEmployee(id: string): Promise<Employee> { 
-    return this.request<Employee>(`/employee-profile/${id}`); 
-  }
-  
-  getMyProfile(employeeNumber: string): Promise<Employee> { 
-    return this.request<Employee>(`/employee-profile/${employeeNumber}/my-profile`); 
-  }
-  
-  updateSelfImmediate(employeeNumber: string, data: Partial<SelfUpdateForm>): Promise<Employee> { 
-    return this.request<Employee>(`/employee-profile/${employeeNumber}/my-profile/immediate`, { 
-      method: 'PUT', 
-      body: JSON.stringify(data) 
-    }); 
-  }
-  
-  createEmployee(data: Partial<EmployeeForm>): Promise<Employee> { 
-    return this.request<Employee>('/employee-profile', { 
-      method: 'POST', 
-      body: JSON.stringify(data) 
-    }); 
-  }
-  
-  updateEmployeeAdmin(id: string, data: Partial<Employee>): Promise<Employee> { 
-    return this.request<Employee>(`/employee-profile/${id}/admin`, { 
-      method: 'PUT', 
-      body: JSON.stringify(data) 
-    }); 
-  }
-  
-  getMyEmployees(): Promise<Employee[]> { 
-    return this.request<Employee[]>('/employee-profile/my-employees'); 
-  }
-  
-  async createProfileChangeRequest(
-  employeeNumber: string,
-  data: {
-    requestDescription: string;
-    reason: string;
-  }
-) {
-  return this.request(
-    `/employee-profile/${employeeNumber}/my-profile/change-request`,
-    {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }
-  );
-}
 
-  
-  getAllChangeRequests(): Promise<ChangeRequest[]> { 
-    return this.request<ChangeRequest[]>('/employee-profile/change-requests/all'); 
+  getEmployee(id: string): Promise<Employee> {
+    return this.request<Employee>(`/employee-profile/${id}`);
   }
-  
+
+  getMyProfile(employeeNumber: string): Promise<Employee> {
+    return this.request<Employee>(`/employee-profile/${employeeNumber}/my-profile`);
+  }
+
+  updateSelfImmediate(employeeNumber: string, data: Partial<SelfUpdateForm>): Promise<Employee> {
+    return this.request<Employee>(`/employee-profile/${employeeNumber}/my-profile/immediate`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
+  createEmployee(data: Partial<EmployeeForm>): Promise<Employee> {
+    return this.request<Employee>('/employee-profile', {
+      method: 'POST',
+      body: JSON.stringify(data)
+    });
+  }
+
+  updateEmployeeAdmin(id: string, data: Partial<Employee>): Promise<Employee> {
+    return this.request<Employee>(`/employee-profile/${id}/admin`, {
+      method: 'PUT',
+      body: JSON.stringify(data)
+    });
+  }
+
+  getMyEmployees(): Promise<Employee[]> {
+    return this.request<Employee[]>('/employee-profile/my-employees');
+  }
+
+  async createProfileChangeRequest(
+    employeeNumber: string,
+    data: {
+      requestDescription: string;
+      reason: string;
+    }
+  ) {
+    return this.request(
+      `/employee-profile/${employeeNumber}/my-profile/change-request`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
+
+
+  getAllChangeRequests(): Promise<ChangeRequest[]> {
+    return this.request<ChangeRequest[]>('/employee-profile/change-requests/all');
+  }
+
   reviewChangeRequest(
     requestId: string,
     data: { action: 'APPROVED' | 'REJECTED' | 'CANCELED'; patch?: any }
@@ -128,7 +128,7 @@ class APIService {
     );
   }
 
-  createCandidate(data: CandidateForm): Promise<any> { 
+  createCandidate(data: CandidateForm): Promise<any> {
     const payload = {
       firstName: data.firstName,
       lastName: data.lastName,
@@ -139,20 +139,23 @@ class APIService {
       nationalId: data.nationalId,
       roles: [data.role],
     };
-    return this.request<any>('/employee-profile/candidate', { 
-      method: 'POST', 
-      body: JSON.stringify(payload) 
-    }); 
+    return this.request<any>('/employee-profile/candidate', {
+      method: 'POST',
+      body: JSON.stringify(payload)
+    });
   }
-  
-  getByRole(role: string): Promise<Employee[]> { 
-    return this.request<Employee[]>(`/employee-profile/roles?role=${role}`); 
+
+  getByRole(role: string): Promise<Employee[]> {
+    return this.request<Employee[]>(`/employee-profile/roles?role=${role}`);
   }
-  
-  getMyRole(): Promise<{ role: string; roles: string[] }> { 
-    return this.request<{ role: string; roles: string[] }>('/employee-profile/myrole', { 
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } 
-    }); 
+
+  // getMyRole(): Promise<{ role: string; roles: string[] }> { 
+  //   return this.request<{ role: string; roles: string[] }>('/employee-profile/myrole', { 
+  //     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } 
+  //   }); 
+  // }
+  getMyRole(): Promise<{ roles: string[] }> {
+    return this.request<{ roles: string[] }>('/employee-profile/myrole');
   }
 }
 
@@ -171,35 +174,38 @@ const EmployeeProfileDashboard: React.FC = () => {
   const [roles, setRoles] = useState<string[]>([]);
   const [role, setRole] = useState<string>('');
 
-  const [currentUser] = useState<CurrentUser>({ 
-    employeeNumber: 'EMP-1001', 
-    roles: ['HR_MANAGER'], 
-    primaryDepartmentId: '507f1f77bcf86cd799439011' 
+  const [currentUser] = useState<CurrentUser>({
+    employeeNumber: 'EMP-1001',
+    roles: ['HR_MANAGER'],
+    primaryDepartmentId: '507f1f77bcf86cd799439011'
   });
   const router = useRouter();
   const goToDetails = (requestId: string) => {
     router.push(`/employee-profile/change-request/${requestId}`);
   };
+  const goToEmployeeDetails = (employeeId: string) => {
+    router.push(`/employee-profile/${employeeId}`);
+  };
 
-  const [candidateForm, setCandidateForm] = useState<CandidateForm>({ 
-    firstName: '', 
-    lastName: '', 
-    email: '', 
+  const [candidateForm, setCandidateForm] = useState<CandidateForm>({
+    firstName: '',
+    lastName: '',
+    email: '',
     phone: '',
     password: '',
     role: SystemRole.JOB_CANDIDATE,
     nationalId: '',
 
   });
-  
-  const [employeeForm, setEmployeeForm] = useState<EmployeeForm>({ 
-    firstName: '', 
-    lastName: '', 
-    email: '', 
-    phone: '', 
+
+  const [employeeForm, setEmployeeForm] = useState<EmployeeForm>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
     position: ''
   });
-  
+
   const [changeRequest, setChangeRequest] = useState({
     requestDescription: '',
     reason: '',
@@ -208,13 +214,13 @@ const EmployeeProfileDashboard: React.FC = () => {
   const [crSuccess, setCrSuccess] = useState('');
   const [crError, setCrError] = useState('');
 
-  
-  const [selfUpdateForm, setSelfUpdateForm] = useState<SelfUpdateForm>({ 
-    profilePictureUrl: '', 
-    biography: '', 
-    personalEmail: '', 
-    mobilePhone: '', 
-    address: { city: '', streetAddress: '', country: '' } 
+
+  const [selfUpdateForm, setSelfUpdateForm] = useState<SelfUpdateForm>({
+    profilePictureUrl: '',
+    biography: '',
+    personalEmail: '',
+    mobilePhone: '',
+    address: { city: '', streetAddress: '', country: '' }
   });
 
   const hasRole = (r: string): boolean => roles.includes(r);
@@ -227,38 +233,37 @@ const EmployeeProfileDashboard: React.FC = () => {
   const isSystemAdmin = hasRole('System Admin');
 
   useEffect(() => {
-  const fetchInitialData = async () => {
-    try {
-      // Fetch roles first
-      const data = await api.getMyRole();
-      setRoles(data.roles || [data.role]);
-      setRole(data.role);
+    const fetchInitialData = async () => {
+      try {
+        // Fetch roles first
+        const data = await api.getMyRole();
+        // console.log(data);
+        console.log('role extracted', ' + ', data.roles);
+        setRoles(data.roles);
+        // setRole(data.role);
 
-      // Fetch profile
-      const profile = await api.getMyProfile(currentUser.employeeNumber);
-      setMyProfile(profile);
+        // Fetch profile
+        const profile = await api.getMyProfile(currentUser.employeeNumber);
+        setMyProfile(profile);
 
-      if(isHR || isHREmployee){
-        const requests = await api.getAllChangeRequests();
-        setChangeRequests(requests);
+        console.log('Current logged-in user profile:', profile);
+        console.log('Current logged-in user roles:', data.roles);
+      } catch (err: any) {
+        console.error('Failed to fetch initial data:', err);
+        setError(err.message || 'Failed to fetch initial data');
       }
-      // Optionally, fetch change requests immediately
-      
-
-      console.log('Current logged-in user profile:', profile);
-      console.log('Current logged-in user roles:', data.roles || [data.role]);
-      // console.log('Initial change requests:', requests);
-    } catch (err: any) {
-      console.error('Failed to fetch initial data:', err);
-      setError(err.message || 'Failed to fetch initial data');
-    }
-  };
-  fetchInitialData();
+    };
+    fetchInitialData();
     //   fetchChangeRequests();
 
-}, []);
+  }, []);
 
   useEffect(() => {
+    if (!roles.length) return;
+
+    if (isHR || isHREmployee) {
+      api.getAllChangeRequests().then(setChangeRequests);
+    }
     if (isHR || isDeptHead || isSystemAdmin) {
       loadEmployees();
     }
@@ -320,98 +325,98 @@ const EmployeeProfileDashboard: React.FC = () => {
     }
   };
 
-  const createEmployee = async (e: React.FormEvent) => { 
-    e.preventDefault(); 
-    try { 
-      setSuccess('Employee created successfully'); 
-      setEmployeeForm({ firstName: '', lastName: '', email: '', phone: '', position: '' }); 
-      loadEmployees(); 
-    } catch { 
-      setError('Failed to create employee'); 
-    } 
+  const createEmployee = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      setSuccess('Employee created successfully');
+      setEmployeeForm({ firstName: '', lastName: '', email: '', phone: '', position: '' });
+      loadEmployees();
+    } catch {
+      setError('Failed to create employee');
+    }
   };
-  
-  const createCandidate = async (e: React.FormEvent) => { 
-    e.preventDefault(); 
+
+  const createCandidate = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
       await api.createCandidate(candidateForm);
-      setSuccess('Candidate created successfully'); 
-      setCandidateForm({ firstName: '', lastName: '', email: '', phone: '', password: '', role: SystemRole.JOB_CANDIDATE, nationalId: ''  }); 
+      setSuccess('Candidate created successfully');
+      setCandidateForm({ firstName: '', lastName: '', email: '', phone: '', password: '', role: SystemRole.JOB_CANDIDATE, nationalId: '' });
     } catch (err: any) {
-      setError(err.message || 'Failed to create candidate'); 
-    } 
+      setError(err.message || 'Failed to create candidate');
+    }
   };
-  
-    const updateSelfProfile = async (e: React.FormEvent) => {
-      e.preventDefault();
 
-      if (!myProfile?.employeeNumber) {
-        setError('Employee number not loaded');
-        return;
-      }
+  const updateSelfProfile = async (e: React.FormEvent) => {
+    e.preventDefault();
 
-      try {
-        await api.updateSelfImmediate(myProfile.employeeNumber, {
-          profilePictureUrl: selfUpdateForm.profilePictureUrl || undefined,
-          biography: selfUpdateForm.biography || undefined,
-          personalEmail: selfUpdateForm.personalEmail || undefined,
-          mobilePhone: selfUpdateForm.mobilePhone || undefined,
-          address: {
-        streetAddress: selfUpdateForm.address.streetAddress || undefined,
-        city: selfUpdateForm.address.city || undefined,
-        country: selfUpdateForm.address.country || undefined,
-      },
-        });
+    if (!myProfile?.employeeNumber) {
+      setError('Employee number not loaded');
+      return;
+    }
 
-        setSuccess('Profile updated successfully');
-        await fetchMyProfile();
-        
-      } catch (err: any) {
-        console.error(err);
-        setError(err.message || 'Failed to update profile');
-      }
-    };
+    try {
+      await api.updateSelfImmediate(myProfile.employeeNumber, {
+        profilePictureUrl: selfUpdateForm.profilePictureUrl || undefined,
+        biography: selfUpdateForm.biography || undefined,
+        personalEmail: selfUpdateForm.personalEmail || undefined,
+        mobilePhone: selfUpdateForm.mobilePhone || undefined,
+        address: {
+          streetAddress: selfUpdateForm.address.streetAddress || undefined,
+          city: selfUpdateForm.address.city || undefined,
+          country: selfUpdateForm.address.country || undefined,
+        },
+      });
+
+      setSuccess('Profile updated successfully');
+      await fetchMyProfile();
+
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Failed to update profile');
+    }
+  };
 
 
-    const submitChangeRequest = async (e: React.FormEvent) => {
-  e.preventDefault();
-  setCrSuccess('');
-  setCrError('');
+  const submitChangeRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setCrSuccess('');
+    setCrError('');
 
-  try {
-    await api.createProfileChangeRequest(
-      myProfile?.employeeNumber || '',
-      changeRequest
-    );
+    try {
+      await api.createProfileChangeRequest(
+        myProfile?.employeeNumber || '',
+        changeRequest
+      );
 
-    setCrSuccess('Change request submitted successfully');
+      setCrSuccess('Change request submitted successfully');
 
-    setChangeRequest({
-      requestDescription: '',
-      reason: '',
-    });
-  } catch (err) {
-    setCrError('Failed to submit change request');
-  }
-};
+      setChangeRequest({
+        requestDescription: '',
+        reason: '',
+      });
+    } catch (err) {
+      setCrError('Failed to submit change request');
+    }
+  };
 
 
   const reviewChangeRequest = async (requestId: string, action: 'APPROVED' | 'REJECTED' | 'CANCELED') => {
-  try {
-    // Call your API with the action string
-    await api.reviewChangeRequest(requestId, { action });
+    try {
+      // Call your API with the action string
+      await api.reviewChangeRequest(requestId, { action });
 
-    setSuccess(`Change request ${action.toLowerCase()}`);
+      setSuccess(`Change request ${action.toLowerCase()}`);
 
-    // Refresh the change requests list
-    const updatedRequests = await api.getAllChangeRequests();
-    console.log('Updated Change Requests:', updatedRequests);
-    setChangeRequests(updatedRequests);
-  } catch (err: any) {
-    console.error('Failed to review change request:', err);
-    setError(err.message || 'Failed to review change request');
-  }
-};
+      // Refresh the change requests list
+      const updatedRequests = await api.getAllChangeRequests();
+      console.log('Updated Change Requests:', updatedRequests);
+      setChangeRequests(updatedRequests);
+    } catch (err: any) {
+      console.error('Failed to review change request:', err);
+      setError(err.message || 'Failed to review change request');
+    }
+  };
 
   const filteredEmployees = employees.filter(emp =>
     emp.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -420,9 +425,9 @@ const EmployeeProfileDashboard: React.FC = () => {
   );
 
   const StatusBadge: React.FC<{ status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' }> = ({ status }) => {
-    const styles: Record<string, string> = { 
-      PENDING: 'badge-pending', 
-      APPROVED: 'badge-approved', 
+    const styles: Record<string, string> = {
+      PENDING: 'badge-pending',
+      APPROVED: 'badge-approved',
       REJECTED: 'badge-rejected',
       CANCELLED: 'badge-cancelled'
     };
@@ -432,7 +437,7 @@ const EmployeeProfileDashboard: React.FC = () => {
   return (
     <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-secondary)' }}>
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
-      
+
       <style>{`
         :root {
           --primary-50: #eff6ff;
@@ -667,7 +672,7 @@ const EmployeeProfileDashboard: React.FC = () => {
           background: linear-gradient(135deg, var(--warning) 0%, var(--warning-dark) 100%);
         }
       `}</style>
-      
+
       {/* Header */}
       <div className="navbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <h1 style={{ margin: 0, fontSize: '1.5rem', color: 'var(--text-primary)', fontWeight: 600 }}>
@@ -700,15 +705,15 @@ const EmployeeProfileDashboard: React.FC = () => {
         {/* Sidebar Navigation */}
         <div className="sidebar" style={{ width: '250px' }}>
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-            <div 
+            <div
               className={`sidebar-item ${activeView === 'overview' ? 'active' : ''}`}
               onClick={() => setActiveView('overview')}
             >
               <User size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
               Overview
             </div>
-            
-            <div 
+
+            <div
               className={`sidebar-item ${activeView === 'my-profile' ? 'active' : ''}`}
               onClick={() => setActiveView('my-profile')}
             >
@@ -717,7 +722,7 @@ const EmployeeProfileDashboard: React.FC = () => {
             </div>
 
             {(isHRManager || isDeptHead || isSystemAdmin) && (
-              <div 
+              <div
                 className={`sidebar-item ${activeView === 'employees' ? 'active' : ''}`}
                 onClick={() => setActiveView('employees')}
               >
@@ -726,20 +731,20 @@ const EmployeeProfileDashboard: React.FC = () => {
               </div>
             )}
 
-            {isRecruiter &&(
+            {isRecruiter && (
               <>
-              <div 
+                <div
                   className={`sidebar-item ${activeView === 'create-candidate' ? 'active' : ''}`}
                   onClick={() => setActiveView('create-candidate')}
                 >
                   <UserPlus size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
                   Create Candidate
                 </div>
-                </>
+              </>
             )}
             {isHR && (
               <>
-                <div 
+                <div
                   className={`sidebar-item ${activeView === 'change-requests' ? 'active' : ''}`}
                   onClick={() => setActiveView('change-requests')}
                 >
@@ -764,14 +769,14 @@ const EmployeeProfileDashboard: React.FC = () => {
 
         {/* Main Content */}
         <div style={{ flex: 1, padding: '2rem' }}>
-          
+
           {/* Overview */}
           {activeView === 'overview' && (
             <div>
               <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Dashboard Overview</h2>
               <button
                 className="btn-secondary"
-                style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1.5rem'  }}
+                style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1.5rem' }}
                 onClick={() => window.location.reload()} // refresh page
                 title="Refresh Dashboard"
               >
@@ -781,13 +786,13 @@ const EmployeeProfileDashboard: React.FC = () => {
 
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
                 {isHR && (
-                <div className="stat-card">
-                  <Users size={32} style={{ marginBottom: '0.5rem' }} />
-                  <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                    {employees.length}
+                  <div className="stat-card">
+                    <Users size={32} style={{ marginBottom: '0.5rem' }} />
+                    <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
+                      {employees.length}
+                    </div>
+                    <div style={{ opacity: 0.9 }}>Total Employees</div>
                   </div>
-                  <div style={{ opacity: 0.9 }}>Total Employees</div>
-                </div>
                 )}
 
                 {isHR && (
@@ -801,13 +806,13 @@ const EmployeeProfileDashboard: React.FC = () => {
                 )}
 
                 {isHR && (
-                <div className="stat-card-success">
-                  <CheckCircle size={32} style={{ marginBottom: '0.5rem' }} />
-                  <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                    {changeRequests.filter(r => r.status === 'APPROVED').length}
+                  <div className="stat-card-success">
+                    <CheckCircle size={32} style={{ marginBottom: '0.5rem' }} />
+                    <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
+                      {changeRequests.filter(r => r.status === 'APPROVED').length}
+                    </div>
+                    <div style={{ opacity: 0.9 }}>Approved Requests</div>
                   </div>
-                  <div style={{ opacity: 0.9 }}>Approved Requests</div>
-                </div>
                 )}
               </div>
 
@@ -840,7 +845,7 @@ const EmployeeProfileDashboard: React.FC = () => {
           {activeView === 'my-profile' && myProfile && (
             <div>
               <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>My Profile</h2>
-              
+
               <div className="card" style={{ marginBottom: '1.5rem' }}>
                 <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Profile Information</h3>
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
@@ -856,7 +861,7 @@ const EmployeeProfileDashboard: React.FC = () => {
                   <div>
                     <strong>Personal Email:</strong> {myProfile.personalEmail || 'N/A'}
                   </div>
-                   {/* Address Section */}
+                  {/* Address Section */}
                   <div
                     style={{
                       gridColumn: 'span 2',
@@ -901,27 +906,27 @@ const EmployeeProfileDashboard: React.FC = () => {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
                     <div className="form-group">
                       <label className="form-label">Profile Picture URL</label>
-                      <input 
+                      <input
                         className="form-input"
                         value={selfUpdateForm.profilePictureUrl}
-                        onChange={(e) => setSelfUpdateForm({...selfUpdateForm, profilePictureUrl: e.target.value})}
+                        onChange={(e) => setSelfUpdateForm({ ...selfUpdateForm, profilePictureUrl: e.target.value })}
                       />
                     </div>
                     <div className="form-group">
                       <label className="form-label">Personal Email</label>
-                      <input 
+                      <input
                         className="form-input"
                         type="email"
                         value={selfUpdateForm.personalEmail}
-                        onChange={(e) => setSelfUpdateForm({...selfUpdateForm, personalEmail: e.target.value})}
+                        onChange={(e) => setSelfUpdateForm({ ...selfUpdateForm, personalEmail: e.target.value })}
                       />
                     </div>
                     <div className="form-group">
                       <label className="form-label">Mobile Phone</label>
-                      <input 
+                      <input
                         className="form-input"
                         value={selfUpdateForm.mobilePhone}
-                        onChange={(e) => setSelfUpdateForm({...selfUpdateForm, mobilePhone: e.target.value})}
+                        onChange={(e) => setSelfUpdateForm({ ...selfUpdateForm, mobilePhone: e.target.value })}
                       />
                     </div>
                     {/* Address Section */}
@@ -1002,11 +1007,11 @@ const EmployeeProfileDashboard: React.FC = () => {
 
                     <div className="form-group" style={{ gridColumn: 'span 2' }}>
                       <label className="form-label">Biography</label>
-                      <textarea 
+                      <textarea
                         className="form-input"
                         rows={3}
                         value={selfUpdateForm.biography}
-                        onChange={(e) => setSelfUpdateForm({...selfUpdateForm, biography: e.target.value})}
+                        onChange={(e) => setSelfUpdateForm({ ...selfUpdateForm, biography: e.target.value })}
                       />
                     </div>
                   </div>
@@ -1015,42 +1020,42 @@ const EmployeeProfileDashboard: React.FC = () => {
                   </button>
                 </form>
               </div>
-              
+
               {/* Submit Change Request - BELOW Update Profile */}
-              { (isDeptEmployee || isHREmployee )&& (  
-              <div className="card" style={{ marginTop: '1.5rem' }}>
-                <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Request Profile Changes</h3>
-                <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
-                  Submit a request for critical profile changes that require HR approval.
-                </p>
-                <form onSubmit={submitChangeRequest}>
-                  <div className="form-group">
-                    <label className="form-label">Change Description *</label>
-                    <textarea 
-                      className="form-input"
-                      rows={3}
-                      required
-                      placeholder="Describe the changes you want to make..."
-                      value={changeRequest.requestDescription}
-                      onChange={(e) => setChangeRequest({...changeRequest, requestDescription: e.target.value})}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Reason *</label>
-                    <textarea 
-                      className="form-input"
-                      rows={3}
-                      required
-                      placeholder="Explain why these changes are needed..."
-                      value={changeRequest.reason}
-                      onChange={(e) => setChangeRequest({...changeRequest, reason: e.target.value})}
-                    />
-                  </div>
-                  <button type="submit" className="btn-primary">
-                    Submit Request
-                  </button>
-                </form>
-              </div>
+              {(isDeptEmployee || isHREmployee) && (
+                <div className="card" style={{ marginTop: '1.5rem' }}>
+                  <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Request Profile Changes</h3>
+                  <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                    Submit a request for critical profile changes that require HR approval.
+                  </p>
+                  <form onSubmit={submitChangeRequest}>
+                    <div className="form-group">
+                      <label className="form-label">Change Description *</label>
+                      <textarea
+                        className="form-input"
+                        rows={3}
+                        required
+                        placeholder="Describe the changes you want to make..."
+                        value={changeRequest.requestDescription}
+                        onChange={(e) => setChangeRequest({ ...changeRequest, requestDescription: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Reason *</label>
+                      <textarea
+                        className="form-input"
+                        rows={3}
+                        required
+                        placeholder="Explain why these changes are needed..."
+                        value={changeRequest.reason}
+                        onChange={(e) => setChangeRequest({ ...changeRequest, reason: e.target.value })}
+                      />
+                    </div>
+                    <button type="submit" className="btn-primary">
+                      Submit Request
+                    </button>
+                  </form>
+                </div>
               )}
             </div>
           )}
@@ -1063,7 +1068,7 @@ const EmployeeProfileDashboard: React.FC = () => {
                 </h2>
                 <div style={{ position: 'relative', width: '300px' }}>
                   <Search size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
-                  <input 
+                  <input
                     className="form-input"
                     placeholder="Search employees..."
                     value={searchTerm}
@@ -1090,10 +1095,10 @@ const EmployeeProfileDashboard: React.FC = () => {
                         <td>{emp.firstName} {emp.lastName}</td>
                         <td>{emp.workEmail}</td>
                         <td>
-                          <button 
-                            className="btn-secondary" 
+                          <button
+                            className="btn-secondary"
                             style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-                            onClick={() => setSelectedEmployee(emp)}
+                            onClick={() => goToEmployeeDetails(emp._id)}
                           >
                             View Details
                           </button>
@@ -1165,90 +1170,90 @@ const EmployeeProfileDashboard: React.FC = () => {
               </div>
             </div>
           )} */}
-        {/* Create Candidate */}
-        {activeView === 'create-candidate' && hasRole('Recruiter') && (
-          <div>
-            <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Add New Candidate</h2>
-            <div className="card">
-              <form onSubmit={createCandidate}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-                  <div className="form-group">
-                    <label className="form-label">First Name *</label>
-                    <input 
-                      className="form-input"
-                      required
-                      value={candidateForm.firstName}
-                      onChange={(e) => setCandidateForm({...candidateForm, firstName: e.target.value})}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Last Name *</label>
-                    <input 
-                      className="form-input"
-                      required
-                      value={candidateForm.lastName}
-                      onChange={(e) => setCandidateForm({...candidateForm, lastName: e.target.value})}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Email *</label>
-                    <input 
-                      className="form-input"
-                      type="email"
-                      required
-                      value={candidateForm.email}
-                      onChange={(e) => setCandidateForm({...candidateForm, email: e.target.value})}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Phone</label>
-                    <input 
-                      className="form-input"
-                      value={candidateForm.phone}
-                      onChange={(e) => setCandidateForm({...candidateForm, phone: e.target.value})}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Password *</label>
-                    <input 
-                      className="form-input"
-                      type="password"
-                      required
-                      value={candidateForm.password}
-                      onChange={(e) => setCandidateForm({...candidateForm, password: e.target.value})}
-                    />
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">National ID *</label>
-                    <input
-                      className="form-input"
-                      required
-                      value={candidateForm.nationalId}
-                      onChange={(e) => setCandidateForm({ ...candidateForm, nationalId: e.target.value })}
-                    />
-                  </div>
+          {/* Create Candidate */}
+          {activeView === 'create-candidate' && hasRole('Recruiter') && (
+            <div>
+              <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Add New Candidate</h2>
+              <div className="card">
+                <form onSubmit={createCandidate}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                    <div className="form-group">
+                      <label className="form-label">First Name *</label>
+                      <input
+                        className="form-input"
+                        required
+                        value={candidateForm.firstName}
+                        onChange={(e) => setCandidateForm({ ...candidateForm, firstName: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Last Name *</label>
+                      <input
+                        className="form-input"
+                        required
+                        value={candidateForm.lastName}
+                        onChange={(e) => setCandidateForm({ ...candidateForm, lastName: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Email *</label>
+                      <input
+                        className="form-input"
+                        type="email"
+                        required
+                        value={candidateForm.email}
+                        onChange={(e) => setCandidateForm({ ...candidateForm, email: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Phone</label>
+                      <input
+                        className="form-input"
+                        value={candidateForm.phone}
+                        onChange={(e) => setCandidateForm({ ...candidateForm, phone: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">Password *</label>
+                      <input
+                        className="form-input"
+                        type="password"
+                        required
+                        value={candidateForm.password}
+                        onChange={(e) => setCandidateForm({ ...candidateForm, password: e.target.value })}
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label className="form-label">National ID *</label>
+                      <input
+                        className="form-input"
+                        required
+                        value={candidateForm.nationalId}
+                        onChange={(e) => setCandidateForm({ ...candidateForm, nationalId: e.target.value })}
+                      />
+                    </div>
 
-                  <div className="form-group">
-                    <label className="form-label">Role *</label>
-                    <select
-                      className="form-input"
-                      required
-                      value={candidateForm.role}
-                      onChange={(e) => setCandidateForm({...candidateForm, role: e.target.value as SystemRole})}
-                    >
-                      <option value={SystemRole.JOB_CANDIDATE}>
-                        {SystemRole.JOB_CANDIDATE.replace('_', ' ')}
-                      </option>
-                    </select>
+                    <div className="form-group">
+                      <label className="form-label">Role *</label>
+                      <select
+                        className="form-input"
+                        required
+                        value={candidateForm.role}
+                        onChange={(e) => setCandidateForm({ ...candidateForm, role: e.target.value as SystemRole })}
+                      >
+                        <option value={SystemRole.JOB_CANDIDATE}>
+                          {SystemRole.JOB_CANDIDATE.replace('_', ' ')}
+                        </option>
+                      </select>
+                    </div>
                   </div>
-                </div>
-                <button type="submit" className="btn-primary" style={{ marginTop: '1rem' }}>
-                  Add Candidate
-                </button>
-              </form>
+                  <button type="submit" className="btn-primary" style={{ marginTop: '1rem' }}>
+                    Add Candidate
+                  </button>
+                </form>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
           {/* Create Candidate
           {activeView === 'create-candidate' && hasRole('RECRUITER') && (
@@ -1352,49 +1357,49 @@ const EmployeeProfileDashboard: React.FC = () => {
                   </thead>
                   <tbody>
                     {changeRequests.map(req => (
-                    <tr key={req.requestId}>
-                      <td>{req.requestId}</td>
-                      <td>
-                        {req.employeeProfileId?.firstName} {req.employeeProfileId?.lastName}
-                      </td>
-                      <td>{req.requestDescription}</td>
-                      <td><StatusBadge status={req.status} /></td>
-                      <td>{new Date(req.submittedAt).toLocaleDateString()}</td>
-                      <td>
-                        {req.status === 'PENDING' && (
-                          <div style={{ display: 'flex', gap: '0.5rem' }}>
-                            <button 
-                              className="btn-success"
-                              style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-                              onClick={() => reviewChangeRequest(req.requestId, 'APPROVED')}
-                            >
-                              Approve
-                            </button>
-                            <button 
-                              className="btn-danger"
-                              style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-                              onClick={() => reviewChangeRequest(req.requestId, 'REJECTED')}
-                            >
-                              Reject
-                            </button>
-                            <button 
-                              className="btn-secondary"
-                              style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-                              onClick={() => reviewChangeRequest(req.requestId, 'CANCELED')}
-                            >
-                              Cancel
-                            </button>
-                            <button
+                      <tr key={req.requestId}>
+                        <td>{req.requestId}</td>
+                        <td>
+                          {req.employeeProfileId?.firstName} {req.employeeProfileId?.lastName}
+                        </td>
+                        <td>{req.requestDescription}</td>
+                        <td><StatusBadge status={req.status} /></td>
+                        <td>{new Date(req.submittedAt).toLocaleDateString()}</td>
+                        <td>
+                          {req.status === 'PENDING' && (
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button
+                                className="btn-success"
+                                style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                                onClick={() => reviewChangeRequest(req.requestId, 'APPROVED')}
+                              >
+                                Approve
+                              </button>
+                              <button
+                                className="btn-danger"
+                                style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                                onClick={() => reviewChangeRequest(req.requestId, 'REJECTED')}
+                              >
+                                Reject
+                              </button>
+                              <button
+                                className="btn-secondary"
+                                style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                                onClick={() => reviewChangeRequest(req.requestId, 'CANCELED')}
+                              >
+                                Cancel
+                              </button>
+                              <button
                                 className="btn-secondary"
                                 onClick={() => goToDetails(req.requestId)}
                               >
                                 See Details
-                            </button>
-                          </div>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                              </button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
 
                   </tbody>
                 </table>
@@ -1445,19 +1450,19 @@ const EmployeeProfileDashboard: React.FC = () => {
 
       {/* Employee Details Modal */}
       {selectedEmployee && (
-        <div 
+        <div
           className="modal-overlay"
-          style={{ 
-            position: 'fixed', 
-            inset: 0, 
-            display: 'flex', 
-            alignItems: 'center', 
+          style={{
+            position: 'fixed',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
             justifyContent: 'center',
             zIndex: 50
           }}
           onClick={() => setSelectedEmployee(null)}
         >
-          <div 
+          <div
             className="modal-content"
             style={{ width: '90%', maxWidth: '600px' }}
             onClick={(e) => e.stopPropagation()}
@@ -1465,12 +1470,12 @@ const EmployeeProfileDashboard: React.FC = () => {
             <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-light)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Employee Details</h3>
-                <button 
+                <button
                   onClick={() => setSelectedEmployee(null)}
-                  style={{ 
-                    background: 'none', 
-                    border: 'none', 
-                    fontSize: '1.5rem', 
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '1.5rem',
                     cursor: 'pointer',
                     color: 'var(--text-secondary)'
                   }}
