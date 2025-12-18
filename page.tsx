@@ -301,18 +301,18 @@ const EmployeeProfileDashboard: React.FC = () => {
   };
 
 
-  const fetchChangeRequests = async () => {
-    setLoading(true);
-    try {
-      const data = await api.getAllChangeRequests();
-      console.log(data);
-      setChangeRequests(data);
-    } catch (err: any) {
-      setError(err.message || 'Failed to fetch change requests');
-    } finally {
-      setLoading(false);
-    }
-  };
+  // const fetchChangeRequests = async () => {
+  //   setLoading(true);
+  //   try {
+  //     const data = await api.getAllChangeRequests();
+  //     console.log(data);
+  //     setChangeRequests(data);
+  //   } catch (err: any) {
+  //     setError(err.message || 'Failed to fetch change requests');
+  //   } finally {
+  //     setLoading(false);
+  //   }
+  // };
 
   const fetchMyProfile = async () => {
     try {
@@ -323,16 +323,16 @@ const EmployeeProfileDashboard: React.FC = () => {
     }
   };
 
-  const createEmployee = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      setSuccess('Employee created successfully');
-      setEmployeeForm({ firstName: '', lastName: '', email: '', phone: '', position: '' });
-      loadEmployees();
-    } catch {
-      setError('Failed to create employee');
-    }
-  };
+  // const createEmployee = async (e: React.FormEvent) => {
+  //   e.preventDefault();
+  //   try {
+  //     setSuccess('Employee created successfully');
+  //     setEmployeeForm({ firstName: '', lastName: '', email: '', phone: '', position: '' });
+  //     loadEmployees();
+  //   } catch {
+  //     setError('Failed to create employee');
+  //   }
+  // };
 
   const createCandidate = async (e: React.FormEvent) => {
     e.preventDefault();
