@@ -1,6 +1,3 @@
-// Employee Profile Types
-// These types should match the backend schemas/DTOs
-
 export interface Address {
   city?: string;
   streetAddress?: string;
