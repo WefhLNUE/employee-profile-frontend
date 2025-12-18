@@ -155,6 +155,24 @@ class APIService {
   getMyRole(): Promise<{ roles: string[] }> {
     return this.request<{ roles: string[] }>('/employee-profile/myrole');
   }
+
+  createLegalChangeRequest(
+    employeeNumber: string,
+    data: {
+      newLegalFirstName?: string;
+      newLegalLastName?: string;
+      newMaritalStatus?: string;
+      reason: string;
+    }
+  ) {
+    return this.request(
+      `/employee-profile/${employeeNumber}/my-profile/legal-change-request`,
+      {
+        method: 'POST',
+        body: JSON.stringify(data),
+      }
+    );
+  }
 }
 
 const api = new APIService();
@@ -208,9 +226,16 @@ const EmployeeProfileDashboard: React.FC = () => {
     requestDescription: '',
     reason: '',
   });
-
+  const [legalChangeRequest, setLegalChangeRequest] = useState({
+    newLegalFirstName: '',
+    newLegalLastName: '',
+    newMaritalStatus: '',
+    reason: '',
+  });
   const [crSuccess, setCrSuccess] = useState('');
   const [crError, setCrError] = useState('');
+  const [legalCrSuccess, setLegalCrSuccess] = useState('');
+  const [legalCrError, setLegalCrError] = useState('');
 
 
   const [selfUpdateForm, setSelfUpdateForm] = useState<SelfUpdateForm>({
@@ -395,6 +420,30 @@ const EmployeeProfileDashboard: React.FC = () => {
       });
     } catch (err) {
       setCrError('Failed to submit change request');
+    }
+  };
+
+  const submitLegalChangeRequest = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLegalCrSuccess('');
+    setLegalCrError('');
+
+    try {
+      await api.createLegalChangeRequest(
+        myProfile?.employeeNumber || '',
+        legalChangeRequest
+      );
+
+      setLegalCrSuccess('Legal change request submitted successfully');
+
+      setLegalChangeRequest({
+        newLegalFirstName: '',
+        newLegalLastName: '',
+        newMaritalStatus: '',
+        reason: '',
+      });
+    } catch (err) {
+      setLegalCrError('Failed to submit legal change request');
     }
   };
 
@@ -1051,6 +1100,68 @@ const EmployeeProfileDashboard: React.FC = () => {
                     </div>
                     <button type="submit" className="btn-primary">
                       Submit Request
+                    </button>
+                  </form>
+                </div>
+              )}
+
+              {/* Legal Name/Marital Status Change Request - BELOW Profile Change Request */}
+              {(isDeptEmployee) && (
+                <div className="card" style={{ marginTop: '1.5rem' }}>
+                  <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Legal Name / Marital Status Change Request</h3>
+                  <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
+                    Submit a request to change your legal name or marital status.
+                  </p>
+                  {legalCrSuccess && <div style={{ padding: '0.75rem', marginBottom: '1rem', backgroundColor: 'var(--success-light)', color: 'var(--success)', borderRadius: '0.5rem' }}>{legalCrSuccess}</div>}
+                  {legalCrError && <div style={{ padding: '0.75rem', marginBottom: '1rem', backgroundColor: 'var(--danger-light)', color: 'var(--danger)', borderRadius: '0.5rem' }}>{legalCrError}</div>}
+                  <form onSubmit={submitLegalChangeRequest}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
+                      <div className="form-group">
+                        <label className="form-label">New Legal First Name</label>
+                        <input
+                          className="form-input"
+                          placeholder="Leave blank if no change"
+                          value={legalChangeRequest.newLegalFirstName}
+                          onChange={(e) => setLegalChangeRequest({ ...legalChangeRequest, newLegalFirstName: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group">
+                        <label className="form-label">New Legal Last Name</label>
+                        <input
+                          className="form-input"
+                          placeholder="Leave blank if no change"
+                          value={legalChangeRequest.newLegalLastName}
+                          onChange={(e) => setLegalChangeRequest({ ...legalChangeRequest, newLegalLastName: e.target.value })}
+                        />
+                      </div>
+                      <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                        <label className="form-label">New Marital Status</label>
+                        <select
+                          className="form-input"
+                          value={legalChangeRequest.newMaritalStatus}
+                          onChange={(e) => setLegalChangeRequest({ ...legalChangeRequest, newMaritalStatus: e.target.value })}
+                        >
+                          <option value="">-- No Change --</option>
+                          <option value="SINGLE">Single</option>
+                          <option value="MARRIED">Married</option>
+                          <option value="DIVORCED">Divorced</option>
+                          <option value="WIDOWED">Widowed</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div className="form-group" style={{ marginTop: '1rem' }}>
+                      <label className="form-label">Reason *</label>
+                      <textarea
+                        className="form-input"
+                        rows={3}
+                        required
+                        placeholder="Explain why this change is needed..."
+                        value={legalChangeRequest.reason}
+                        onChange={(e) => setLegalChangeRequest({ ...legalChangeRequest, reason: e.target.value })}
+                      />
+                    </div>
+                    <button type="submit" className="btn-primary" style={{ marginTop: '1rem' }}>
+                      Submit Legal Change Request
                     </button>
                   </form>
                 </div>
