@@ -128,4 +128,21 @@ export const api = {
     const data = await res.json();
     return data.roles;
   },
+  deactivateEmployee: async (id: string, status: string) => {
+    const response = await fetch(`http://localhost:5000/employee-profile/${id}/deactivate`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify({ status }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to deactivate employee');
+    }
+    return response.json();
+  },
 };

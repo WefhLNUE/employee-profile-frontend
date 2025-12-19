@@ -23,6 +23,16 @@ export interface Employee {
   permissions?: string[];
   roles?: string[];
   permissionsLastUpdated?: string | Date;
+  status?: EmployeeStatus;
+  // Appraisal fields
+  lastAppraisalRecordId?: any;
+  lastAppraisalCycleId?: any;
+  lastAppraisalTemplateId?: any;
+  lastAppraisalDate?: string | Date;
+  lastAppraisalScore?: number;
+  lastAppraisalRatingLabel?: string;
+  lastAppraisalScaleType?: string;
+  lastDevelopmentPlanSummary?: string;
 }
 
 export interface ChangeRequest {
