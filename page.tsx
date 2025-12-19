@@ -184,6 +184,7 @@ const api = new APIService();
 const EmployeeProfileDashboard: React.FC = () => {
   const [activeView, setActiveView] = useState<string>('overview');
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [myTeam, setMyTeam] = useState<Employee[]>([]); // Department team members
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
   const [myChangeRequests, setMyChangeRequests] = useState<ChangeRequest[]>([]);
   const [myProfile, setMyProfile] = useState<Employee | null>(null);
@@ -299,6 +300,10 @@ const EmployeeProfileDashboard: React.FC = () => {
     if (isHR || isDeptHead || isSystemAdmin) {
       loadEmployees();
     }
+    // Load team members for department heads
+    if (isDeptHead) {
+      loadMyTeam();
+    }
   }, [roles]); // run after roles are set
 
   useEffect(() => {
@@ -344,6 +349,20 @@ const EmployeeProfileDashboard: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to fetch employees');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadMyTeam = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      const data = await api.getMyEmployees();
+      setMyTeam(data);
+    } catch (err: any) {
+      console.error(err);
+      setError(err.message || 'Failed to fetch team members');
     } finally {
       setLoading(false);
     }
@@ -879,6 +898,16 @@ const EmployeeProfileDashboard: React.FC = () => {
                       {employees.length}
                     </div>
                     <div style={{ opacity: 0.9 }}>Total Employees</div>
+                  </div>
+                )}
+
+                {isDeptHead && (
+                  <div className="stat-card">
+                    <Users size={32} style={{ marginBottom: '0.5rem' }} />
+                    <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
+                      {myTeam.length}
+                    </div>
+                    <div style={{ opacity: 0.9 }}>My Team</div>
                   </div>
                 )}
 
