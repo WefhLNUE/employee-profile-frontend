@@ -15,6 +15,8 @@ export interface Employee {
   phone?: string;
   mobilePhone?: string;
   position?: string;
+  primaryPositionId?: any;
+  primaryDepartmentId?: any;
   biography?: string;
   profilePictureUrl?: string;
   address?: Address;
@@ -31,7 +33,7 @@ export interface ChangeRequest {
   };
   requestDescription: string;
   reason?: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELED';
   submittedAt: string | Date;
 }
 
@@ -109,7 +111,17 @@ export enum EmployeeStatus {
   TERMINATED = 'TERMINATED',
 }
 
+export enum MaritalStatus {
+  SINGLE = 'SINGLE',
+  MARRIED = 'MARRIED',
+  DIVORCED = 'DIVORCED',
+  WIDOWED = 'WIDOWED',
+}
+
 export interface UpdateEmployeeAdminForm {
+  firstName?: string;
+  lastName?: string;
+  maritalStatus?: MaritalStatus;
   contractStartDate?: string;
   contractEndDate?: string;
   contractType?: ContractType;

@@ -115,4 +115,17 @@ export const api = {
     if (!res.ok) throw new Error(`Failed to fetch unique permissions: ${res.status}`);
     return res.json();
   },
+
+  getMyRoles: async () => {
+    const res = await fetch(`http://localhost:5000/employee-profile/myrole`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+    if (!res.ok) throw new Error(`Failed to fetch my roles: ${res.status}`);
+    const data = await res.json();
+    return data.roles;
+  },
 };
