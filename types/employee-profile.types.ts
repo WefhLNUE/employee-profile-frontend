@@ -15,6 +15,8 @@ export interface Employee {
   phone?: string;
   mobilePhone?: string;
   position?: string;
+  primaryPositionId?: any;
+  primaryDepartmentId?: any;
   biography?: string;
   profilePictureUrl?: string;
   address?: Address;

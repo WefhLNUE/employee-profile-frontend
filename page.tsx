@@ -1214,6 +1214,8 @@ const EmployeeProfileDashboard: React.FC = () => {
                       <th>Employee #</th>
                       <th>Name</th>
                       <th>Email</th>
+                      <th>Department</th>
+                      <th>Position</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
@@ -1223,6 +1225,8 @@ const EmployeeProfileDashboard: React.FC = () => {
                         <td>{emp.employeeNumber}</td>
                         <td>{emp.firstName} {emp.lastName}</td>
                         <td>{emp.workEmail}</td>
+                        <td>{emp.primaryDepartmentId?.name || 'N/A'}</td>
+                        <td>{emp.primaryPositionId?.title || 'N/A'}</td>
                         <td>
                           <button
                             className="btn-secondary"
