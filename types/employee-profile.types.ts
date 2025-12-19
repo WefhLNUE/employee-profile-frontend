@@ -134,6 +134,9 @@ export interface UpdateEmployeeAdminForm {
   firstName?: string;
   lastName?: string;
   maritalStatus?: MaritalStatus;
+  dateOfBirth?: string;
+  nationalId?: string;
+  dateOfHire?: string;
   contractStartDate?: string;
   contractEndDate?: string;
   contractType?: ContractType;
@@ -144,6 +147,18 @@ export interface UpdateEmployeeAdminForm {
   primaryDepartmentId?: string;
   supervisorPositionId?: string;
   payGradeId?: string;
+  payGradeName?: string;
+  workEmail?: string;
+  personalEmail?: string;
+  mobilePhone?: string;
+  homePhone?: string;
+  streetAddress?: string;
+  city?: string;
+  country?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
+  biography?: string;
+  profilePictureUrl?: string;
   permissions?: string[];
   roles?: string[];
 }

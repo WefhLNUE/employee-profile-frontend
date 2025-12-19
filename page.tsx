@@ -529,9 +529,24 @@ const EmployeeProfileDashboard: React.FC = () => {
     setLegalCrError('');
 
     try {
+      // Only send fields that have values
+      const payload: any = {
+        reason: legalChangeRequest.reason
+      };
+
+      if (legalChangeRequest.newLegalFirstName?.trim()) {
+        payload.newLegalFirstName = legalChangeRequest.newLegalFirstName;
+      }
+      if (legalChangeRequest.newLegalLastName?.trim()) {
+        payload.newLegalLastName = legalChangeRequest.newLegalLastName;
+      }
+      if (legalChangeRequest.newMaritalStatus?.trim()) {
+        payload.newMaritalStatus = legalChangeRequest.newMaritalStatus;
+      }
+
       await api.createLegalChangeRequest(
         myProfile?.employeeNumber || '',
-        legalChangeRequest
+        payload
       );
 
       setLegalCrSuccess('Legal change request submitted successfully');
