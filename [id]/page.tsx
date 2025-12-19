@@ -471,7 +471,17 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                 </div>
 
                 {/* Performance & Appraisal */}
-                <h4 style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem', marginTop: '1rem' }}>Performance & Appraisal</h4>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid var(--border-light)', marginTop: '1rem', paddingBottom: '0.5rem' }}>
+                  <h4 style={{ margin: 0 }}>Performance & Appraisal</h4>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ fontSize: '0.75rem', padding: '0.25rem 0.5rem' }}
+                    onClick={() => window.open('/performance/assignments', '_blank')}
+                  >
+                    Go to Appraisals
+                  </button>
+                </div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
                   <div>
                     <label className="form-label">Last Appraisal Record ID</label>
