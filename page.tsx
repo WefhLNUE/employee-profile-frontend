@@ -248,6 +248,7 @@ const EmployeeProfileDashboard: React.FC = () => {
 
   const hasRole = (r: string): boolean => roles.includes(r);
   const isHR = hasRole('HR Manager') || hasRole('HR Admin');
+  const isHRAdmin = hasRole('HR Admin');
   const isHRManager = hasRole('HR Manager');
   const isRecruiter = hasRole('Recruiter');
   const isDeptHead = hasRole('department head');
@@ -1449,7 +1450,7 @@ const EmployeeProfileDashboard: React.FC = () => {
           )} */}
 
           {/* Change Requests List */}
-          {activeView === 'change-requests' && (isHR || isHREmployee) && (
+          {activeView === 'change-requests' && (isHR) && (
             <div>
               <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Profile Change Requests</h2>
               <div className="card">

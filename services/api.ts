@@ -67,4 +67,52 @@ export const api = {
     if (!res.ok) throw new Error(`Failed to update employee admin data: ${res.status}`);
     return res.json();
   },
+
+  getAllDepartments: async () => {
+    const res = await fetch(`http://localhost:5000/organization-structure/departments`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+    if (!res.ok) throw new Error(`Failed to fetch departments: ${res.status}`);
+    return res.json();
+  },
+
+  getAllPositions: async () => {
+    const res = await fetch(`http://localhost:5000/organization-structure/positions`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+    if (!res.ok) throw new Error(`Failed to fetch positions: ${res.status}`);
+    return res.json();
+  },
+
+  getSupervisors: async () => {
+    const res = await fetch(`http://localhost:5000/employee-profile/supervisors`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+    if (!res.ok) throw new Error(`Failed to fetch supervisors: ${res.status}`);
+    return res.json();
+  },
+
+  getUniquePermissions: async () => {
+    const res = await fetch(`http://localhost:5000/employee-profile/unique-permissions`, {
+      method: 'GET',
+      credentials: 'include',
+      headers: {
+        ...getAuthHeaders(),
+      },
+    });
+    if (!res.ok) throw new Error(`Failed to fetch unique permissions: ${res.status}`);
+    return res.json();
+  },
 };
