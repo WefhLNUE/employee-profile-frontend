@@ -102,6 +102,25 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
   };
 
 
+  const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [deactivationStatus, setDeactivationStatus] = useState<string>('');
+
+  const handleDeactivate = async () => {
+    if (!employeeId || !deactivationStatus) return;
+
+    try {
+      await api.deactivateEmployee(employeeId, deactivationStatus);
+      setSuccess('Employee deactivated successfully');
+      setShowDeactivateModal(false);
+      // Refresh data
+      const updated = await api.getEmployeeById(employeeId);
+      setEmployee(updated);
+    } catch (err: any) {
+      setError(err.message || 'Failed to deactivate employee');
+      setShowDeactivateModal(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ color: 'var(--info)' }}>
@@ -157,7 +176,27 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
             : 'N/A'}
           </p>
 
+          {/* Appraisal History for HR Manager/System Admin */}
           {myRoles.some(r => [SystemRole.HR_MANAGER, SystemRole.HR_ADMIN, SystemRole.SYSTEM_ADMIN].includes(r as SystemRole)) && (
+            <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.5rem' }}>
+              <h3 style={{ fontSize: '1.2rem', marginBottom: '1rem', color: 'var(--text-primary)' }}>
+                Performance & Appraisal History
+              </h3>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                <div>
+                  <p><strong>Last Appraisal Date:</strong> {employee.lastAppraisalDate ? new Date(employee.lastAppraisalDate).toLocaleDateString() : 'N/A'}</p>
+                  <p><strong>Score:</strong> {employee.lastAppraisalScore ?? 'N/A'}</p>
+                  <p><strong>Rating:</strong> {employee.lastAppraisalRatingLabel || 'N/A'}</p>
+                </div>
+                <div>
+                  <p><strong>Scale Type:</strong> {employee.lastAppraisalScaleType || 'N/A'}</p>
+                  <p><strong>Dev Plan:</strong> {employee.lastDevelopmentPlanSummary || 'N/A'}</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {myRoles.some(r => [SystemRole.HR_MANAGER, 'HR_MANAGER', SystemRole.HR_ADMIN, 'HR_ADMIN', SystemRole.SYSTEM_ADMIN, 'SYSTEM_ADMIN'].includes(r as SystemRole | string)) && (employee.status === EmployeeStatus.ACTIVE || !employee.status) && (
             <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.5rem' }}>
               <h3>Admin Edit</h3>
               <form onSubmit={handleUpdate} style={{ display: 'grid', gap: '1rem', marginTop: '1rem' }}>
@@ -421,15 +460,86 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem' }}>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', alignItems: 'center' }}>
                   <button type="submit" className="btn-primary">Update Employee</button>
-                  <div style={{ marginTop: '1.5rem' }}>
+                  {/* Deactivate Button for HR Admin */}
+                  {myRoles.includes(SystemRole.HR_ADMIN) && (
+                    <button
+                      type="button"
+                      className="btn-danger"
+                      onClick={() => setShowDeactivateModal(true)}
+                      style={{
+                        backgroundColor: '#fee2e2',
+                        color: '#b91c1c',
+                        border: '1px solid #fecaca'
+                      }}
+                    >
+                      Deactivate Profile
+                    </button>
+                  )}
+                  <div style={{ flex: 1 }}></div>
+                  <div style={{ marginTop: '0' }}>
                     <button className="btn-primary" onClick={() => router.push('/employee-profile?view=employees')}>
                       Back
                     </button>
                   </div>
                 </div>
               </form>
+            </div>
+          )}
+
+          {/* Deactivation Modal */}
+          {showDeactivateModal && (
+            <div style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', zIndex: 1000
+            }}>
+              <div className="card" style={{ maxWidth: '400px', width: '100%' }}>
+                <div className="card-header">
+                  <h3>Deactivate Employee</h3>
+                </div>
+                <div style={{ padding: '1rem' }}>
+                  <p>Are you sure you want to deactivate <strong>{employee.firstName} {employee.lastName}</strong>?</p>
+                  <p style={{ fontSize: '0.9rem', color: '#666' }}>
+                    This will prevent them from logging into the system. Please select a reason status:
+                  </p>
+
+                  <select
+                    className="form-input"
+                    style={{ marginTop: '1rem' }}
+                    value={deactivationStatus}
+                    onChange={(e) => setDeactivationStatus(e.target.value)}
+                  >
+                    <option value="">Select Status...</option>
+                    <option value={EmployeeStatus.TERMINATED}>{EmployeeStatus.TERMINATED}</option>
+                    <option value={EmployeeStatus.RETIRED}>{EmployeeStatus.RETIRED}</option>
+                    <option value={EmployeeStatus.INACTIVE}>{EmployeeStatus.INACTIVE}</option>
+                    <option value={EmployeeStatus.SUSPENDED}>{EmployeeStatus.SUSPENDED}</option>
+                  </select>
+
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
+                    <button
+                      className="btn-secondary"
+                      onClick={() => setShowDeactivateModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="btn-danger"
+                      onClick={handleDeactivate}
+                      disabled={!deactivationStatus}
+                      style={{
+                        backgroundColor: !deactivationStatus ? '#ccc' : '#ef4444',
+                        color: 'white',
+                        cursor: !deactivationStatus ? 'not-allowed' : 'pointer'
+                      }}
+                    >
+                      Confirm Deactivation
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
 

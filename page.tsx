@@ -14,7 +14,7 @@ import type {
 } from '@/app/employee-profile/types/employee-profile.types';
 import { useRouter } from 'next/navigation';
 import { RefreshCw } from 'lucide-react';
-import { SystemRole } from './types/employee-profile.types';
+import { SystemRole, EmployeeStatus } from './types/employee-profile.types';
 
 // API Service
 class APIService {
@@ -206,6 +206,9 @@ const EmployeeProfileDashboard: React.FC = () => {
   };
   const goToEmployeeDetails = (employeeId: string) => {
     router.push(`/employee-profile/${employeeId}`);
+  };
+  const goToHierarchy = () => {
+    router.push(`organization-structure/hierarchy`);
   };
 
   const [candidateForm, setCandidateForm] = useState<CandidateForm>({
@@ -806,7 +809,7 @@ const EmployeeProfileDashboard: React.FC = () => {
               My Profile
             </div>
 
-            {(isHRManager || isDeptHead || isSystemAdmin) && (
+            {(isHR || isDeptHead || isSystemAdmin) && (
               <div
                 className={`sidebar-item ${activeView === 'employees' ? 'active' : ''}`}
                 onClick={() => setActiveView('employees')}
@@ -906,6 +909,13 @@ const EmployeeProfileDashboard: React.FC = () => {
                   <button className="btn-primary" onClick={() => setActiveView('my-profile')}>
                     View My Profile
                   </button>
+                  {isDeptHead && (
+                    <>
+                      <button className="btn-primary" onClick={() => goToHierarchy()}>
+                        View My Heirarchy
+                      </button>
+                    </>
+                  )}
                   {isRecruiter && (
                     <>
                       <button className="btn-primary" onClick={() => setActiveView('create-candidate')}>
@@ -1224,7 +1234,9 @@ const EmployeeProfileDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div className="card">
+              {/* ACTIVE EMPLOYEES TABLE */}
+              <div className="card" style={{ marginBottom: '2rem' }}>
+                <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Active Employees</h3>
                 <table className="table">
                   <thead>
                     <tr>
@@ -1237,27 +1249,90 @@ const EmployeeProfileDashboard: React.FC = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredEmployees.map(emp => (
-                      <tr key={emp._id}>
-                        <td>{emp.employeeNumber}</td>
-                        <td>{emp.firstName} {emp.lastName}</td>
-                        <td>{emp.workEmail}</td>
-                        <td>{emp.primaryDepartmentId?.name || 'N/A'}</td>
-                        <td>{emp.primaryPositionId?.title || 'N/A'}</td>
-                        <td>
-                          <button
-                            className="btn-secondary"
-                            style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-                            onClick={() => goToEmployeeDetails(emp._id)}
-                          >
-                            View Details
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
+                    {filteredEmployees
+                      .filter(emp => emp.status === EmployeeStatus.ACTIVE || !emp.status) // defaulting to ACTIVE if undefined
+                      .map(emp => (
+                        <tr key={emp._id}>
+                          <td>{emp.employeeNumber}</td>
+                          <td>{emp.firstName} {emp.lastName}</td>
+                          <td>{emp.workEmail}</td>
+                          <td>{emp.primaryDepartmentId?.name || 'N/A'}</td>
+                          <td>{emp.primaryPositionId?.title || 'N/A'}</td>
+                          <td>
+                            <button
+                              className="btn-secondary"
+                              style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                              onClick={() => goToEmployeeDetails(emp._id)}
+                            >
+                              View Details
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
                   </tbody>
                 </table>
               </div>
+
+              {/* INACTIVE EMPLOYEES TABLE */}
+              {isHR && (
+                <div className="card">
+                  <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Inactive / Terminated Employees</h3>
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Employee #</th>
+                        <th>Name</th>
+                        <th>Work Email</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredEmployees
+                        .filter(emp => emp.status && emp.status !== EmployeeStatus.ACTIVE)
+                        .map(emp => (
+                          <tr key={emp._id}>
+                            <td>{emp.employeeNumber}</td>
+                            <td>{emp.firstName} {emp.lastName}</td>
+                            <td>{emp.workEmail}</td>
+                            <td>
+                              <span style={{
+                                padding: '0.25rem 0.75rem',
+                                borderRadius: '1rem',
+                                fontSize: '0.75rem',
+                                fontWeight: 600,
+                                backgroundColor:
+                                  (emp.status === EmployeeStatus.TERMINATED || emp.status === EmployeeStatus.SUSPENDED) ? '#fee2e2' :
+                                    emp.status === EmployeeStatus.RETIRED ? '#e0e7ff' :
+                                      '#f3f4f6',
+                                color:
+                                  (emp.status === EmployeeStatus.TERMINATED || emp.status === EmployeeStatus.SUSPENDED) ? '#b91c1c' :
+                                    emp.status === EmployeeStatus.RETIRED ? '#4338ca' :
+                                      '#374151'
+                              }}>
+                                {emp.status}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                className="btn-secondary"
+                                style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                                onClick={() => goToEmployeeDetails(emp._id)}
+                              >
+                                View Details
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                    </tbody>
+                  </table>
+                  {filteredEmployees.filter(emp => emp.status && emp.status !== EmployeeStatus.ACTIVE).length === 0 && (
+                    <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>
+                      No inactive employees found.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
