@@ -486,18 +486,35 @@ const EmployeeProfileDashboard: React.FC = () => {
     }
   };
 
+  const handleCancelRequest = async (requestId: string) => {
+    if (!window.confirm('Are you sure you want to cancel this request?')) return;
+    try {
+      await api.reviewChangeRequest(requestId, { action: 'CANCELED' });
+      setSuccess('Request canceled successfully');
+
+      // Refresh the list if we are in the my-profile view
+      if (myProfile) {
+        const data = await api.getMyChangeRequests(myProfile.employeeNumber);
+        setMyChangeRequests(data);
+      }
+    } catch (err: any) {
+      console.error('Failed to cancel request:', err);
+      setError(err.message || 'Failed to cancel request');
+    }
+  };
+
   const filteredEmployees = employees.filter(emp =>
     emp.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.employeeNumber?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const StatusBadge: React.FC<{ status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED' }> = ({ status }) => {
+  const StatusBadge: React.FC<{ status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELED' }> = ({ status }) => {
     const styles: Record<string, string> = {
       PENDING: 'badge-pending',
       APPROVED: 'badge-approved',
       REJECTED: 'badge-rejected',
-      CANCELLED: 'badge-cancelled'
+      CANCELED: 'badge-cancelled'
     };
     return <span className={`badge ${styles[status]}`}>{status}</span>;
   };
@@ -1551,6 +1568,7 @@ const EmployeeProfileDashboard: React.FC = () => {
                       <th>Description</th>
                       <th>Status</th>
                       <th>Submitted</th>
+                      <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -1560,6 +1578,25 @@ const EmployeeProfileDashboard: React.FC = () => {
                         <td>{req.requestDescription}</td>
                         <td><StatusBadge status={req.status} /></td>
                         <td>{new Date(req.submittedAt).toLocaleDateString()}</td>
+                        <td>
+                          <div style={{ display: 'flex', gap: '0.5rem' }}>
+                            <button
+                              className="btn-secondary"
+                              onClick={() => goToDetails(req.requestId)}
+                            >
+                              See Details
+                            </button>
+                            {req.status === 'PENDING' && (
+                              <button
+                                className="btn-secondary"
+                                style={{ backgroundColor: '#fee2e2', color: '#991b1b', borderColor: '#fecaca' }}
+                                onClick={() => handleCancelRequest(req.requestId)}
+                              >
+                                Cancel
+                              </button>
+                            )}
+                          </div>
+                        </td>
                       </tr>
                     ))}
                   </tbody>

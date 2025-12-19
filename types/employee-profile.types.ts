@@ -33,7 +33,7 @@ export interface ChangeRequest {
   };
   requestDescription: string;
   reason?: string;
-  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELED';
   submittedAt: string | Date;
 }
 
