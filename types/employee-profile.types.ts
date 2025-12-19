@@ -18,6 +18,9 @@ export interface Employee {
   biography?: string;
   profilePictureUrl?: string;
   address?: Address;
+  permissions?: string[];
+  roles?: string[];
+  permissionsLastUpdated?: string | Date;
 }
 
 export interface ChangeRequest {
@@ -117,6 +120,8 @@ export interface UpdateEmployeeAdminForm {
   primaryDepartmentId?: string;
   supervisorPositionId?: string;
   payGradeId?: string;
+  permissions?: string[];
+  roles?: string[];
 }
 
 export interface APIResponse<T> {

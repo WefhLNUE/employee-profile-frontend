@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api } from '../services/api';
-import { UpdateEmployeeAdminForm, ContractType, WorkType, EmployeeStatus } from '../types/employee-profile.types';
+import { UpdateEmployeeAdminForm, ContractType, WorkType, EmployeeStatus, SystemRole } from '../types/employee-profile.types';
 
 export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromContext?: string }) {
   const router = useRouter();
@@ -22,6 +22,13 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
   // Edit Form State
   const [editForm, setEditForm] = useState<UpdateEmployeeAdminForm>({});
 
+  // Departments and Positions for dropdowns
+  const [departments, setDepartments] = useState<any[]>([]);
+  const [positions, setPositions] = useState<any[]>([]);
+  const [supervisors, setSupervisors] = useState<any[]>([]);
+  const [uniquePermissions, setUniquePermissions] = useState<string[]>([]);
+  const [newPermission, setNewPermission] = useState('');
+
   useEffect(() => {
     // If the token exists in props/context, set it in localStorage
     if (tokenFromContext) {
@@ -38,18 +45,34 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
     }
 
     setLoading(true);
-    api.getEmployeeById(employeeId)
-      .then((data) => {
-        setEmployee(data);
-        // Initialize form with existing data? 
-        // For partial updates, we might start empty or pre-fill. 
-        // Pre-filling basic fields if they exist in validation set.
-        // Assuming data has these fields logic is omitted for brevity but recommended.
+
+    // Fetch employee, departments, positions, and supervisors in parallel
+    console.log(api.getUniquePermissions().catch(() => []))
+    Promise.all([
+      api.getEmployeeById(employeeId),
+      api.getAllDepartments().catch(() => []),
+      api.getAllPositions().catch(() => []),
+      api.getSupervisors().catch(() => []),
+      api.getUniquePermissions().catch(() => []),
+    ])
+      .then(([employeeData, deptData, posData, supervisorData, permissionsData]) => {
+        setEmployee(employeeData);
+        setDepartments(deptData);
+        setPositions(posData);
+        setSupervisors(supervisorData);
+        setUniquePermissions(permissionsData);
+        setEditForm(prev => ({
+          ...prev,
+          permissions: employeeData.permissions || [],
+          roles: employeeData.roles || []
+        }));
+        console.log(permissionsData)
       })
       .catch((err: any) =>
-        setError(err.message || 'Failed to fetch employee details')
+        setError(err.message || 'Failed to fetch data')
       )
       .finally(() => setLoading(false));
+
   }, [employeeId, tokenFromContext ?? '']);
 
   const handleUpdate = async (e: React.FormEvent) => {
@@ -65,7 +88,7 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
       // Refresh data
       const updated = await api.getEmployeeById(employeeId);
       setEmployee(updated);
-      setEditForm({}); // Clear form or keep it? Keeping it cleared or synced is better.
+      //setEditForm({}); // Clear form or keep it? Keeping it cleared or synced is better.
     } catch (err: any) {
       setError(err.message || 'Failed to update employee');
     }
@@ -117,7 +140,14 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
           <p><strong>Name:</strong> {employee.firstName} {employee.lastName}</p>
           <p><strong>Email:</strong> {employee.workEmail}</p>
           <p><strong>Role(s):</strong> {employee.roles?.join(', ') || 'N/A'}</p>
-          <p><strong>Department:</strong> {employee.primaryDepartmentId?.name || employee.primaryDepartmentId || 'N/A'}</p>
+          <p>
+            <strong>Department:</strong>{' '}
+            {departments.find(d => d._id === employee.primaryDepartmentId)?.name || employee.primaryDepartmentId || 'N/A'}
+          </p>
+          <p>
+            <strong>Position:</strong>{' '}
+            {positions.find(p => p._id === employee.primaryPositionId)?.title || employee.primaryPositionId || 'N/A'}
+          </p>
           <p><strong>Status:</strong> {employee.status || 'Active'}</p>
           <p><strong>Joined:</strong> {employee.createdAt
             ? new Date(employee.createdAt).toLocaleString()
@@ -190,34 +220,52 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
-                  <label className="form-label">Primary Position ID</label>
-                  <input
-                    type="text"
+                  <label className="form-label">Primary Position</label>
+                  <select
                     className="form-input"
-                    placeholder="Position ID"
                     onChange={e => handleChange('primaryPositionId', e.target.value)}
-                  />
+                    defaultValue=""
+                  >
+                    <option value="">Select Position...</option>
+                    {positions.map(pos => (
+                      <option key={pos._id} value={pos._id}>
+                        {pos.title} ({pos.code})
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
-                  <label className="form-label">Primary Department ID</label>
-                  <input
-                    type="text"
+                  <label className="form-label">Primary Department</label>
+                  <select
                     className="form-input"
-                    placeholder="Department ID"
                     onChange={e => handleChange('primaryDepartmentId', e.target.value)}
-                  />
+                    defaultValue=""
+                  >
+                    <option value="">Select Department...</option>
+                    {departments.map(dept => (
+                      <option key={dept._id} value={dept._id}>
+                        {dept.name} ({dept.code})
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                 <div>
-                  <label className="form-label">Supervisor Role Position ID</label>
-                  <input
-                    type="text"
+                  <label className="form-label">Supervisor</label>
+                  <select
                     className="form-input"
-                    placeholder="Supervisor Position ID"
                     onChange={e => handleChange('supervisorPositionId', e.target.value)}
-                  />
+                    defaultValue=""
+                  >
+                    <option value="">Select Supervisor...</option>
+                    {supervisors.map(sup => (
+                      <option key={sup._id} value={sup.primaryPositionId}>
+                        {sup.firstName} {sup.lastName} ({sup.employeeNumber})
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="form-label">Pay Grade ID</label>
@@ -227,6 +275,145 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                     placeholder="Pay Grade ID"
                     onChange={e => handleChange('payGradeId', e.target.value)}
                   />
+                </div>
+              </div>
+
+              <div style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '0.5rem', backgroundColor: 'rgba(0,0,0,0.02)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
+                  <h4 style={{ margin: 0 }}>Management Permissions</h4>
+                  {employee?.permissionsLastUpdated && (
+                    <span style={{ fontSize: '0.75rem', color: 'var(--text-tertiary)' }}>
+                      Last updated: {new Date(employee.permissionsLastUpdated).toLocaleString()}
+                    </span>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', margin: '1rem' }}>
+                  <div style={{ display: 'flex', gap: '1rem' }}>
+                    <div style={{ flex: 1 }}>
+                      <select
+                        className="form-input"
+                        value=""
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val && !(editForm.permissions || []).includes(val)) {
+                            handleChange('permissions', [...(editForm.permissions || []), val]);
+                          }
+                        }}
+                      >
+                        <option value="">Select existing permission...</option>
+                        {uniquePermissions.map(p => (
+                          <option key={p} value={p}>{p}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', gap: '1rem' }}>
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="text"
+                        className="form-input"
+                        placeholder="Or type a custom permission..."
+                        value={newPermission}
+                        onChange={(e) => setNewPermission(e.target.value)}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            if (newPermission && !(editForm.permissions || []).includes(newPermission)) {
+                              handleChange('permissions', [...(editForm.permissions || []), newPermission]);
+                              setNewPermission('');
+                            }
+                          }
+                        }}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => {
+                        if (newPermission && !(editForm.permissions || []).includes(newPermission)) {
+                          handleChange('permissions', [...(editForm.permissions || []), newPermission]);
+                          setNewPermission('');
+                        }
+                      }}
+                    >Add Custom</button>
+                  </div>
+                </div>
+
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                  {(editForm.permissions || []).map((perm, idx) => (
+                    <span key={idx} style={{
+                      backgroundColor: 'var(--bg-primary)',
+                      padding: '0.25rem 0.75rem',
+                      borderRadius: '1rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '0.5rem',
+                      fontSize: '0.875rem',
+                      border: '1px solid var(--border-light)'
+                    }}>
+                      {perm}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const updated = (editForm.permissions || []).filter((_, i) => i !== idx);
+                          handleChange('permissions', updated);
+                        }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 'bold' }}
+                      >×</button>
+                    </span>
+                  ))}
+                  {(editForm.permissions || []).length === 0 && <span style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>No extra permissions set</span>}
+                </div>
+
+                <div style={{ borderTop: '1px solid var(--border-light)', marginTop: '1.5rem', paddingTop: '1rem' }}>
+                  <h4 style={{ marginBottom: '0.75rem' }}>Manage Roles</h4>
+                  <div style={{ display: 'flex', gap: '1rem', margin: '0 0 1rem 0' }}>
+                    <div style={{ flex: 1 }}>
+                      <select
+                        className="form-input"
+                        value=""
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val && !(editForm.roles || []).includes(val)) {
+                            handleChange('roles', [...(editForm.roles || []), val]);
+                          }
+                        }}
+                      >
+                        <option value="">Select a role to add...</option>
+                        {Object.values(SystemRole).map(role => (
+                          <option key={role} value={role}>{role}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {(editForm.roles || []).map((role, idx) => (
+                      <span key={idx} style={{
+                        backgroundColor: 'var(--bg-secondary)',
+                        padding: '0.25rem 0.75rem',
+                        borderRadius: '1rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        fontSize: '0.875rem',
+                        border: '1px solid var(--border-light)'
+                      }}>
+                        {role}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const updated = (editForm.roles || []).filter((_, i) => i !== idx);
+                            handleChange('roles', updated);
+                          }}
+                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontWeight: 'bold' }}
+                        >×</button>
+                      </span>
+                    ))}
+                    {(editForm.roles || []).length === 0 && <span style={{ color: 'var(--text-tertiary)', fontSize: '0.875rem' }}>No roles assigned</span>}
+                  </div>
                 </div>
               </div>
 
