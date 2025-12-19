@@ -103,7 +103,23 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
 
 
   const [showDeactivateModal, setShowDeactivateModal] = useState(false);
+  const [showReactivateModal, setShowReactivateModal] = useState(false);
   const [deactivationStatus, setDeactivationStatus] = useState<string>('');
+
+  const handleReactivate = async () => {
+    if (!employeeId) return;
+    try {
+      await api.reactivateEmployee(employeeId);
+      setSuccess('Employee reactivated successfully');
+      setShowReactivateModal(false);
+      // Refresh data
+      const updated = await api.getEmployeeById(employeeId);
+      setEmployee(updated);
+    } catch (err: any) {
+      setError(err.message || 'Failed to reactivate employee');
+      setShowReactivateModal(false);
+    }
+  };
 
   const handleDeactivate = async () => {
     if (!employeeId || !deactivationStatus) return;
@@ -196,7 +212,7 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
             </div>
           )}
 
-          {myRoles.some(r => [SystemRole.HR_MANAGER, 'HR_MANAGER', SystemRole.HR_ADMIN, 'HR_ADMIN', SystemRole.SYSTEM_ADMIN, 'SYSTEM_ADMIN'].includes(r as SystemRole | string)) && (employee.status === EmployeeStatus.ACTIVE || !employee.status) && (
+          {myRoles.some(r => [SystemRole.HR_MANAGER, 'HR_MANAGER', SystemRole.HR_ADMIN, 'HR_ADMIN', SystemRole.SYSTEM_ADMIN, 'SYSTEM_ADMIN'].includes(r as SystemRole | string)) && (
             <div style={{ marginTop: '1.5rem', borderTop: '1px solid var(--border-light)', paddingTop: '1.5rem' }}>
               <h3>Admin Edit</h3>
               <form onSubmit={handleUpdate} style={{ display: 'grid', gap: '1rem', marginTop: '1rem' }}>
@@ -463,7 +479,7 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                 <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', alignItems: 'center' }}>
                   <button type="submit" className="btn-primary">Update Employee</button>
                   {/* Deactivate Button for HR Admin */}
-                  {myRoles.includes(SystemRole.HR_ADMIN) && (
+                  {myRoles.some(r => [SystemRole.HR_ADMIN, 'HR_ADMIN'].includes(r)) && (employee.status === EmployeeStatus.ACTIVE || !employee.status) && (
                     <button
                       type="button"
                       className="btn-danger"
@@ -475,6 +491,21 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                       }}
                     >
                       Deactivate Profile
+                    </button>
+                  )}
+                  {/* Reactivate Button for HR Admin */}
+                  {myRoles.some(r => [SystemRole.HR_ADMIN, 'HR_ADMIN'].includes(r)) && (employee.status && employee.status !== EmployeeStatus.ACTIVE) && (
+                    <button
+                      type="button"
+                      className="btn-success"
+                      onClick={() => setShowReactivateModal(true)}
+                      style={{
+                        backgroundColor: '#d1fae5',
+                        color: '#065f46',
+                        border: '1px solid #a7f3d0'
+                      }}
+                    >
+                      Reactivate Profile
                     </button>
                   )}
                   <div style={{ flex: 1 }}></div>
@@ -536,6 +567,46 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                       }}
                     >
                       Confirm Deactivation
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Reactivation Modal */}
+          {showReactivateModal && (
+            <div style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', zIndex: 1000
+            }}>
+              <div className="card" style={{ maxWidth: '400px', width: '100%' }}>
+                <div className="card-header">
+                  <h3>Reactivate Employee</h3>
+                </div>
+                <div style={{ padding: '1rem' }}>
+                  <p>Are you sure you want to reactivate <strong>{employee.firstName} {employee.lastName}</strong>?</p>
+                  <p style={{ fontSize: '0.9rem', color: '#666' }}>
+                    This will restore their system access and set their status back to ACTIVE.
+                  </p>
+
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
+                    <button
+                      className="btn-secondary"
+                      onClick={() => setShowReactivateModal(false)}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="btn-success"
+                      onClick={handleReactivate}
+                      style={{
+                        backgroundColor: '#10b981',
+                        color: 'white',
+                      }}
+                    >
+                      Confirm Reactivaton
                     </button>
                   </div>
                 </div>

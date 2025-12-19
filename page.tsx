@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
-import { User, Users, FileText, UserPlus, CheckCircle, AlertCircle, Clock, Search } from 'lucide-react';
+import { User, Users, FileText, UserPlus, CheckCircle, AlertCircle, Clock, Search, ArrowUpDown } from 'lucide-react';
 import type {
   Address,
   Employee,
@@ -12,7 +12,7 @@ import type {
   SelfUpdateForm,
   APIResponse,
 } from '@/app/employee-profile/types/employee-profile.types';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { RefreshCw } from 'lucide-react';
 import { SystemRole, EmployeeStatus } from './types/employee-profile.types';
 
@@ -152,8 +152,8 @@ class APIService {
   //     headers: { Authorization: `Bearer ${localStorage.getItem('token')}` } 
   //   }); 
   // }
-  getMyRole(): Promise<{ roles: string[] }> {
-    return this.request<{ roles: string[] }>('/employee-profile/myrole');
+  getMyRole(): Promise<{ roles: string[], employeeNumber: string, primaryDepartmentId: string }> {
+    return this.request<{ roles: string[], employeeNumber: string, primaryDepartmentId: string }>('/employee-profile/myrole');
   }
 
   createLegalChangeRequest(
@@ -195,13 +195,40 @@ const EmployeeProfileDashboard: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [roles, setRoles] = useState<string[]>([]);
   const [role, setRole] = useState<string>('');
+  const [sortConfig, setSortConfig] = useState<{ key: string; direction: 'asc' | 'desc' } | null>(null);
 
-  const [currentUser] = useState<CurrentUser>({
-    employeeNumber: 'EMP-1001',
-    roles: ['HR_MANAGER'],
-    primaryDepartmentId: '507f1f77bcf86cd799439011'
-  });
+  const requestSort = (key: string) => {
+    let direction: 'asc' | 'desc' = 'asc';
+    if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
+      direction = 'desc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortedData = (data: any[]) => {
+    if (!sortConfig) return data;
+    const { key, direction } = sortConfig;
+    return [...data].sort((a, b) => {
+      const aValue = a[key] || '';
+      const bValue = b[key] || '';
+      if (aValue < bValue) return direction === 'asc' ? -1 : 1;
+      if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  };
+
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const searchParams = useSearchParams();
   const router = useRouter();
+
+  // Handle URL view parameter
+  useEffect(() => {
+    const viewParam = searchParams.get('view') || 'overview';
+    if (viewParam !== activeView) {
+      setActiveView(viewParam);
+    }
+  }, [searchParams, activeView]);
+
   const goToDetails = (requestId: string) => {
     router.push(`/employee-profile/change-request/${requestId}`);
   };
@@ -255,6 +282,9 @@ const EmployeeProfileDashboard: React.FC = () => {
     address: { city: '', streetAddress: '', country: '' }
   });
 
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+
   const hasRole = (r: string): boolean => roles.includes(r);
   const isHR = hasRole('HR Manager') || hasRole('HR Admin');
   const isHRAdmin = hasRole('HR Admin');
@@ -273,14 +303,29 @@ const EmployeeProfileDashboard: React.FC = () => {
         // console.log(data);
         console.log('role extracted', ' + ', data.roles);
         setRoles(data.roles);
-        // setRole(data.role);
+        setCurrentUser({
+          employeeNumber: data.employeeNumber,
+          roles: data.roles,
+          primaryDepartmentId: data.primaryDepartmentId
+        });
 
         // Fetch profile
-        const profile = await api.getMyProfile(currentUser.employeeNumber);
-        setMyProfile(profile);
+        if (data.employeeNumber) {
+          const profile = await api.getMyProfile(data.employeeNumber);
+          setMyProfile(profile);
 
-        console.log('Current logged-in user profile:', profile);
-        console.log('Current logged-in user roles:', data.roles);
+          setSelfUpdateForm({
+            profilePictureUrl: profile.profilePictureUrl || '',
+            biography: profile.biography || '',
+            personalEmail: profile.personalEmail || '',
+            mobilePhone: profile.mobilePhone || '',
+            address: {
+              city: profile.address?.city || '',
+              streetAddress: profile.address?.streetAddress || '',
+              country: profile.address?.country || ''
+            }
+          });
+        }
       } catch (err: any) {
         console.error('Failed to fetch initial data:', err);
         setError(err.message || 'Failed to fetch initial data');
@@ -340,6 +385,12 @@ const EmployeeProfileDashboard: React.FC = () => {
     }
   }, [activeView, myProfile]);
 
+  useEffect(() => {
+    if (activeView === 'my-department' && isDeptHead) {
+      loadMyTeam();
+    }
+  }, [activeView, isDeptHead]);
+
   const loadEmployees = async () => {
     setLoading(true);
     setError('');
@@ -383,6 +434,7 @@ const EmployeeProfileDashboard: React.FC = () => {
   // };
 
   const fetchMyProfile = async () => {
+    if (!currentUser?.employeeNumber) return;
     try {
       const data = await api.getMyProfile(currentUser.employeeNumber);
       setMyProfile(data);
@@ -495,17 +547,11 @@ const EmployeeProfileDashboard: React.FC = () => {
     }
   };
 
-
   const reviewChangeRequest = async (requestId: string, action: 'APPROVED' | 'REJECTED' | 'CANCELED') => {
     try {
-      // Call your API with the action string
       await api.reviewChangeRequest(requestId, { action });
-
       setSuccess(`Change request ${action.toLowerCase()}`);
-
-      // Refresh the change requests list
       const updatedRequests = await api.getAllChangeRequests();
-      console.log('Updated Change Requests:', updatedRequests);
       setChangeRequests(updatedRequests);
     } catch (err: any) {
       console.error('Failed to review change request:', err);
@@ -513,11 +559,18 @@ const EmployeeProfileDashboard: React.FC = () => {
     }
   };
 
-  const handleCancelRequest = async (requestId: string) => {
-    if (!window.confirm('Are you sure you want to cancel this request?')) return;
+  const handleCancelRequest = (requestId: string) => {
+    setSelectedRequestId(requestId);
+    setShowCancelModal(true);
+  };
+
+  const confirmCancelRequest = async () => {
+    if (!selectedRequestId) return;
     try {
-      await api.reviewChangeRequest(requestId, { action: 'CANCELED' });
+      await api.reviewChangeRequest(selectedRequestId, { action: 'CANCELED' });
       setSuccess('Request canceled successfully');
+      setShowCancelModal(false);
+      setSelectedRequestId(null);
 
       // Refresh the list if we are in the my-profile view
       if (myProfile) {
@@ -527,6 +580,7 @@ const EmployeeProfileDashboard: React.FC = () => {
     } catch (err: any) {
       console.error('Failed to cancel request:', err);
       setError(err.message || 'Failed to cancel request');
+      setShowCancelModal(false);
     }
   };
 
@@ -783,6 +837,82 @@ const EmployeeProfileDashboard: React.FC = () => {
         .stat-card-warning {
           background: linear-gradient(135deg, var(--warning) 0%, var(--warning-dark) 100%);
         }
+
+        /* Premium Quick Button Styles */
+        .quick-actions-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+          gap: 1.25rem;
+          margin-top: 1rem;
+        }
+
+        .quick-btn {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.75rem;
+          padding: 1.5rem;
+          background-color: var(--bg-primary);
+          border: 1px solid var(--border-light);
+          border-radius: 1rem;
+          color: var(--text-primary);
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+          text-align: center;
+          position: relative;
+          overflow: hidden;
+          box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .quick-btn::before {
+          content: '';
+          position: absolute;
+          top: 0;
+          left: 0;
+          width: 100%;
+          height: 100%;
+          background: linear-gradient(45deg, transparent, rgba(255,255,255,0.1), transparent);
+          transform: translateX(-100%);
+          transition: 0.6s;
+        }
+
+        .quick-btn:hover {
+          transform: translateY(-5px);
+          border-color: var(--primary-400);
+          box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+          background-color: var(--primary-50);
+        }
+
+        .quick-btn:hover::before {
+          transform: translateX(100%);
+        }
+
+        .quick-btn:hover .icon-container {
+          transform: scale(1.1) rotate(5deg);
+          color: var(--primary-600);
+        }
+
+        .icon-container {
+          padding: 0.75rem;
+          border-radius: 0.75rem;
+          background-color: var(--primary-50);
+          color: var(--primary-500);
+          transition: all 0.3s ease;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+
+        .animate-fade-in {
+          animation: fadeIn 0.5s ease forwards;
+        }
       `}</style>
 
       {/* Header */}
@@ -819,7 +949,7 @@ const EmployeeProfileDashboard: React.FC = () => {
           <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <div
               className={`sidebar-item ${activeView === 'overview' ? 'active' : ''}`}
-              onClick={() => setActiveView('overview')}
+              onClick={() => router.push('/employee-profile?view=overview')}
             >
               <User size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
               Overview
@@ -827,19 +957,29 @@ const EmployeeProfileDashboard: React.FC = () => {
 
             <div
               className={`sidebar-item ${activeView === 'my-profile' ? 'active' : ''}`}
-              onClick={() => setActiveView('my-profile')}
+              onClick={() => router.push('/employee-profile?view=my-profile')}
             >
               <User size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
               My Profile
             </div>
 
-            {(isHR || isDeptHead || isSystemAdmin) && (
+            {((isHR || isHREmployee) || isSystemAdmin) && (
               <div
                 className={`sidebar-item ${activeView === 'employees' ? 'active' : ''}`}
-                onClick={() => setActiveView('employees')}
+                onClick={() => router.push('/employee-profile?view=employees')}
               >
                 <Users size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
-                {isDeptHead ? 'My Team' : 'All Employees'}
+                All Employees
+              </div>
+            )}
+
+            {isDeptHead && (
+              <div
+                className={`sidebar-item ${activeView === 'my-department' ? 'active' : ''}`}
+                onClick={() => router.push('/employee-profile?view=my-department')}
+              >
+                <Users size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
+                My Department
               </div>
             )}
 
@@ -847,7 +987,7 @@ const EmployeeProfileDashboard: React.FC = () => {
               <>
                 <div
                   className={`sidebar-item ${activeView === 'create-candidate' ? 'active' : ''}`}
-                  onClick={() => setActiveView('create-candidate')}
+                  onClick={() => router.push('/employee-profile?view=create-candidate')}
                 >
                   <UserPlus size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
                   Create Candidate
@@ -858,7 +998,7 @@ const EmployeeProfileDashboard: React.FC = () => {
               <>
                 <div
                   className={`sidebar-item ${activeView === 'change-requests' ? 'active' : ''}`}
-                  onClick={() => setActiveView('change-requests')}
+                  onClick={() => router.push('/employee-profile?view=change-requests')}
                 >
                   <FileText size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
                   Change Requests
@@ -869,7 +1009,7 @@ const EmployeeProfileDashboard: React.FC = () => {
             {!isHR && (
               <div
                 className={`sidebar-item ${activeView === 'my-change-requests' ? 'active' : ''}`}
-                onClick={() => setActiveView('my-change-requests')}
+                onClick={() => router.push('/employee-profile?view=my-change-requests')}
               >
                 <Clock size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
                 My Change Requests
@@ -938,34 +1078,194 @@ const EmployeeProfileDashboard: React.FC = () => {
               </div>
 
               <div className="card" style={{ marginTop: '2rem' }}>
-                <h3 style={{ marginBottom: '1rem' }}>Quick Actions</h3>
-                <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
-                  <button className="btn-primary" onClick={() => setActiveView('my-profile')}>
-                    View My Profile
+                <h3 style={{ marginBottom: '1.25rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <User size={20} />
+                  Professional Summary
+                </h3>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                  <div style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '0.75rem', backgroundColor: 'var(--bg-secondary)' }}>
+                    <div style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: '0.5rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.025em' }}>Department</div>
+                    <div style={{ fontWeight: 600, fontSize: '1.1rem', color: 'var(--text-primary)' }}>{myProfile?.primaryDepartmentId?.name || 'Unassigned'}</div>
+                  </div>
+                  <div style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '0.75rem', backgroundColor: 'var(--bg-secondary)' }}>
+                    <div style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: '0.5rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.025em' }}>Position</div>
+                    <div style={{ fontWeight: 600, fontSize: '1.1rem', color: 'var(--text-primary)' }}>{myProfile?.primaryPositionId?.title || 'Unassigned'}</div>
+                  </div>
+                  <div style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '0.75rem', backgroundColor: 'var(--bg-secondary)' }}>
+                    <div style={{ fontSize: '0.8125rem', color: 'var(--text-tertiary)', marginBottom: '0.5rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.025em' }}>Employment status</div>
+                    <div>
+                      <span className={`badge badge-${myProfile?.status?.toLowerCase() || 'active'}`} style={{ fontSize: '0.875rem' }}>
+                        {myProfile?.status || 'ACTIVE'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="card" style={{ marginTop: '2rem' }}>
+                <h3 style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <Users size={20} />
+                  Quick Actions
+                </h3>
+
+                <div className="quick-actions-grid">
+                  {/* Common Actions */}
+                  <button className="quick-btn animate-fade-in" onClick={() => router.push('/employee-profile?view=my-profile')} style={{ animationDelay: '0.1s' }}>
+                    <div className="icon-container">
+                      <User size={24} />
+                    </div>
+                    <span>My Profile</span>
                   </button>
+
+                  <button className="quick-btn animate-fade-in" onClick={() => { router.push('/employee-profile?view=my-profile'); setTimeout(() => document.getElementById('update-profile')?.scrollIntoView({ behavior: 'smooth' }), 300); }} style={{ animationDelay: '0.2s' }}>
+                    <div className="icon-container">
+                      <RefreshCw size={24} />
+                    </div>
+                    <span>Update Contact</span>
+                  </button>
+
+                  {!isHR && (
+                    <button className="quick-btn animate-fade-in" onClick={() => router.push('/employee-profile?view=my-change-requests')} style={{ animationDelay: '0.3s' }}>
+                      <div className="icon-container">
+                        <Clock size={24} />
+                      </div>
+                      <span>My Requests</span>
+                    </button>
+                  )}
+
+                  <button className="quick-btn animate-fade-in" onClick={() => router.push('/leaves')} style={{ animationDelay: '0.4s' }}>
+                    <div className="icon-container">
+                      <FileText size={24} />
+                    </div>
+                    <span>Request Leave</span>
+                  </button>
+
+                  {/* Management/HR Directory access */}
+                  {(isHR || isHREmployee || isSystemAdmin) && (
+                    <button className="quick-btn animate-fade-in" onClick={() => router.push('/employee-profile?view=employees')} style={{ animationDelay: '0.5s' }}>
+                      <div className="icon-container">
+                        <Users size={24} />
+                      </div>
+                      <span>Employee Directory</span>
+                    </button>
+                  )}
+
                   {isDeptHead && (
-                    <>
-                      <button className="btn-primary" onClick={() => goToHierarchy()}>
-                        View My Heirarchy
-                      </button>
-                    </>
+                    <button className="quick-btn animate-fade-in" onClick={() => router.push('/employee-profile?view=my-department')} style={{ animationDelay: '0.5s' }}>
+                      <div className="icon-container">
+                        <Users size={24} />
+                      </div>
+                      <span>My Department</span>
+                    </button>
                   )}
-                  {isRecruiter && (
-                    <>
-                      <button className="btn-primary" onClick={() => setActiveView('create-candidate')}>
-                        Create Candidate
-                      </button>
-                    </>
+
+                  {/* Manager/HR Actions */}
+                  {(isDeptHead || isHR || isHREmployee) && (
+                    <button className="quick-btn animate-fade-in" onClick={() => router.push('/time-management')} style={{ animationDelay: '0.6s' }}>
+                      <div className="icon-container">
+                        <Clock size={24} />
+                      </div>
+                      <span>Team Attendance</span>
+                    </button>
                   )}
-                  {isHR && (
-                    <>
-                      <button className="btn-secondary" onClick={() => setActiveView('change-requests')}>
-                        Review Requests
-                      </button>
-                    </>
+
+                  {isDeptHead && (
+                    <button className="quick-btn animate-fade-in" onClick={() => goToHierarchy()} style={{ animationDelay: '0.7s' }}>
+                      <div className="icon-container">
+                        <Users size={24} />
+                      </div>
+                      <span>Org Hierarchy</span>
+                    </button>
+                  )}
+
+                  {/* HR Actions */}
+                  {(isHR || isHREmployee) && (
+                    <button className="quick-btn animate-fade-in" onClick={() => router.push('/employee-profile?view=change-requests')} style={{ animationDelay: '0.8s' }}>
+                      <div className="icon-container">
+                        <CheckCircle size={24} />
+                      </div>
+                      <span>Review Change Requests</span>
+                    </button>
+                  )}
+
+                  {(isHR || isHREmployee || isRecruiter) && (
+                    <button className="quick-btn animate-fade-in" onClick={() => router.push('/recruitment/candidates/talent-pool')} style={{ animationDelay: '0.9s' }}>
+                      <div className="icon-container">
+                        <Users size={24} />
+                      </div>
+                      <span>Manage Talent</span>
+                    </button>
+                  )}
+
+                  {/* module shortcuts */}
+                  <button className="quick-btn animate-fade-in" onClick={() => router.push('/performance')} style={{ animationDelay: '1.0s' }}>
+                    <div className="icon-container">
+                      <FileText size={24} />
+                    </div>
+                    <span>Performance Review</span>
+                  </button>
+
+                  {(!isDeptHead && !isHR && !isHREmployee) && (
+                    <button className="quick-btn animate-fade-in" onClick={() => router.push('/time-management')} style={{ animationDelay: '1.1s' }}>
+                      <div className="icon-container">
+                        <Clock size={24} />
+                      </div>
+                      <span>My Attendance</span>
+                    </button>
                   )}
                 </div>
               </div>
+
+              {isDeptHead && (
+                <div className="card" style={{ marginTop: '2rem' }}>
+                  <h3 style={{ marginBottom: '1.5rem', color: 'var(--text-secondary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Users size={20} />
+                    My Team members
+                  </h3>
+                  {myTeam.length > 0 ? (
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Employee #</th>
+                          <th>Name</th>
+                          <th>Position</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {myTeam.map(emp => (
+                          <tr key={emp._id}>
+                            <td>{emp.employeeNumber}</td>
+                            <td>{emp.firstName} {emp.lastName}</td>
+                            <td>{emp.primaryPositionId?.title || 'N/A'}</td>
+                            <td>
+                              <span className={`badge badge-${emp.status?.toLowerCase() || 'active'}`}>
+                                {emp.status || 'ACTIVE'}
+                              </span>
+                            </td>
+                            <td>
+                              <button
+                                className="btn-secondary"
+                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                                onClick={() => goToEmployeeDetails(emp._id)}
+                              >
+                                View
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-tertiary)' }}>
+                      <Users size={48} style={{ marginBottom: '1rem', opacity: 0.2 }} />
+                      <p>No team members found in your department.</p>
+                      <p style={{ fontSize: '0.875rem' }}>Ensure employees are assigned to your department to see them here.</p>
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
@@ -974,7 +1274,7 @@ const EmployeeProfileDashboard: React.FC = () => {
             <div>
               <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>My Profile</h2>
 
-              <div className="card" style={{ marginBottom: '1.5rem' }}>
+              <div className="card" id="profile-info" style={{ marginBottom: '1.5rem' }}>
                 <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Profile Information</h3>
 
                 {/* Profile Picture Display */}
@@ -1007,6 +1307,27 @@ const EmployeeProfileDashboard: React.FC = () => {
                   </div>
                   <div>
                     <strong>Personal Email:</strong> {myProfile.personalEmail || 'N/A'}
+                  </div>
+                  <div>
+                    <strong>Department:</strong> {myProfile.primaryDepartmentId?.name || 'N/A'}
+                  </div>
+                  <div>
+                    <strong>Position:</strong> {myProfile.primaryPositionId?.title || 'N/A'}
+                  </div>
+                  <div>
+                    <strong>Status:</strong> <span className={`badge badge-${myProfile.status?.toLowerCase() || 'pending'}`}>{myProfile.status || 'N/A'}</span>
+                  </div>
+                  <div>
+                    <strong>Hire Date:</strong> {myProfile.dateOfHire ? new Date(myProfile.dateOfHire).toLocaleDateString() : 'N/A'}
+                  </div>
+                  <div style={{ gridColumn: 'span 2' }}>
+                    <strong>My Roles:</strong> {roles.length > 0 ? (
+                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                        {roles.map(r => (
+                          <span key={r} className="badge badge-pending" style={{ textTransform: 'uppercase', fontSize: '0.75rem' }}>{r}</span>
+                        ))}
+                      </div>
+                    ) : 'None assigned'}
                   </div>
                   {/* Address Section */}
                   <div
@@ -1047,7 +1368,7 @@ const EmployeeProfileDashboard: React.FC = () => {
                 </div>
               </div>
 
-              <div className="card">
+              <div className="card" id="update-profile">
                 <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Update Profile (Immediate)</h3>
                 <form onSubmit={updateSelfProfile}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
@@ -1253,7 +1574,7 @@ const EmployeeProfileDashboard: React.FC = () => {
               )}
 
               {/* Legal Name/Marital Status Change Request - BELOW Profile Change Request */}
-              {(isDeptEmployee) && (
+              {(isDeptEmployee || isHREmployee) && (
                 <div className="card" style={{ marginTop: '1.5rem' }}>
                   <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Legal Name / Marital Status Change Request</h3>
                   <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
@@ -1315,8 +1636,8 @@ const EmployeeProfileDashboard: React.FC = () => {
               )}
             </div>
           )}
-          {/* Employee List */}
-          {activeView === 'employees' && (
+          {/* Employee List (HR/Admin Only) */}
+          {activeView === 'employees' && (isHR || isHREmployee || isSystemAdmin) && (
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                 <h2 style={{ color: 'var(--text-primary)', margin: 0 }}>
@@ -1433,6 +1754,96 @@ const EmployeeProfileDashboard: React.FC = () => {
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {/* My Department View (Department Head Only) */}
+          {activeView === 'my-department' && isDeptHead && (
+            <div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 style={{ color: 'var(--text-primary)', margin: 0 }}>
+                  My Department Employees
+                </h2>
+                <div style={{ position: 'relative', width: '300px' }}>
+                  <Search size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+                  <input
+                    className="form-input"
+                    placeholder="Search in department..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    style={{ paddingLeft: '2.5rem' }}
+                  />
+                </div>
+              </div>
+
+              <div className="card">
+                <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ color: 'var(--text-secondary)', margin: 0 }}>Active Team Members</h3>
+                  <button
+                    className="btn-secondary"
+                    onClick={loadMyTeam}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}
+                  >
+                    <RefreshCw size={14} /> Refresh Team
+                  </button>
+                </div>
+
+                {!myProfile?.primaryDepartmentId ? (
+                  <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text-tertiary)' }}>
+                    <Users size={48} style={{ marginBottom: '1rem', opacity: 0.15 }} />
+                    <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Department Not Assigned</h4>
+                    <p>You have not been assigned to a department yet. Please contact HR to set your department so you can see your team.</p>
+                  </div>
+                ) : myTeam.length > 0 ? (
+                  <div style={{ overflowX: 'auto' }}>
+                    <table className="table">
+                      <thead>
+                        <tr>
+                          <th>Employee #</th>
+                          <th>Name</th>
+                          <th>Email</th>
+                          <th>Position</th>
+                          <th>Status</th>
+                          <th>Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {myTeam
+                          .filter(emp =>
+                            (emp.firstName + ' ' + emp.lastName).toLowerCase().includes(searchTerm.toLowerCase()) ||
+                            emp.employeeNumber.toLowerCase().includes(searchTerm.toLowerCase())
+                          )
+                          .map(emp => (
+                            <tr key={emp._id}>
+                              <td>{emp.employeeNumber}</td>
+                              <td>{emp.firstName} {emp.lastName}</td>
+                              <td>{emp.workEmail}</td>
+                              <td>{emp.primaryPositionId?.title || 'N/A'}</td>
+                              <td>
+                                <span className="badge badge-active">ACTIVE</span>
+                              </td>
+                              <td>
+                                <button
+                                  className="btn-secondary"
+                                  style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                                  onClick={() => goToEmployeeDetails(emp._id)}
+                                >
+                                  View Details
+                                </button>
+                              </td>
+                            </tr>
+                          ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ) : (
+                  <div style={{ textAlign: 'center', padding: '4rem 2rem', color: 'var(--text-tertiary)' }}>
+                    <Users size={48} style={{ marginBottom: '1rem', opacity: 0.15 }} />
+                    <h4 style={{ color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>No active team members found</h4>
+                    <p>Your department is <strong>{myProfile.primaryDepartmentId.name}</strong>, but no other active employees are currently assigned to it.</p>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 
@@ -1675,13 +2086,18 @@ const EmployeeProfileDashboard: React.FC = () => {
                       <th>Request ID</th>
                       <th>Employee</th>
                       <th>Description</th>
-                      <th>Status</th>
+                      <th
+                        onClick={() => requestSort('status')}
+                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                      >
+                        Status <ArrowUpDown size={14} />
+                      </th>
                       <th>Submitted</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {changeRequests.map(req => (
+                    {getSortedData(changeRequests).map(req => (
                       <tr key={req.requestId}>
                         <td>{req.requestId}</td>
                         <td>
@@ -1732,7 +2148,7 @@ const EmployeeProfileDashboard: React.FC = () => {
           )}
 
           {/* My Change Requests List */}
-          {activeView === 'my-change-requests' && (
+          {activeView === 'my-change-requests' && !isHR && (
             <div>
               <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>My Profile Change Requests</h2>
               <div className="card">
@@ -1741,13 +2157,18 @@ const EmployeeProfileDashboard: React.FC = () => {
                     <tr>
                       <th>Request ID</th>
                       <th>Description</th>
-                      <th>Status</th>
+                      <th
+                        onClick={() => requestSort('status')}
+                        style={{ cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
+                      >
+                        Status <ArrowUpDown size={14} />
+                      </th>
                       <th>Submitted</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {myChangeRequests.map(req => (
+                    {getSortedData(myChangeRequests).map(req => (
                       <tr key={req.requestId}>
                         <td>{req.requestId}</td>
                         <td>{req.requestDescription}</td>
@@ -1889,7 +2310,50 @@ const EmployeeProfileDashboard: React.FC = () => {
           </div>
         )
       }
-    </div >
+      {
+        /* Cancel Request Modal */
+        showCancelModal && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex',
+            alignItems: 'center', justifyContent: 'center', zIndex: 1000
+          }}>
+            <div className="card" style={{ maxWidth: '400px', width: '100%', margin: '0 1rem' }}>
+              <div className="card-header">
+                <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Cancel Request</h3>
+              </div>
+              <div style={{ padding: '1.5rem' }}>
+                <p style={{ color: 'var(--text-primary)' }}>Are you sure you want to cancel this change request?</p>
+                <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginTop: '0.5rem' }}>
+                  This action cannot be undone.
+                </p>
+                <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem', justifyContent: 'flex-end' }}>
+                  <button
+                    className="btn-secondary"
+                    onClick={() => {
+                      setShowCancelModal(false);
+                      setSelectedRequestId(null);
+                    }}
+                  >
+                    No, Keep It
+                  </button>
+                  <button
+                    className="btn-danger"
+                    onClick={confirmCancelRequest}
+                    style={{
+                      backgroundColor: '#ef4444',
+                      color: 'white'
+                    }}
+                  >
+                    Yes, Cancel Request
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )
+      }
+    </div>
   );
 };
 

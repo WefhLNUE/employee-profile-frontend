@@ -24,6 +24,7 @@ export interface Employee {
   roles?: string[];
   permissionsLastUpdated?: string | Date;
   status?: EmployeeStatus;
+  dateOfHire?: string | Date;
   // Appraisal fields
   lastAppraisalRecordId?: any;
   lastAppraisalCycleId?: any;
@@ -45,6 +46,7 @@ export interface ChangeRequest {
   reason?: string;
   status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELED';
   submittedAt: string | Date;
+  processedAt?: string | Date;
 }
 
 export interface CurrentUser {
@@ -150,4 +152,3 @@ export interface APIResponse<T> {
   data?: T;
   message?: string;
 }
-

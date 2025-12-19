@@ -145,4 +145,20 @@ export const api = {
     }
     return response.json();
   },
+  reactivateEmployee: async (id: string) => {
+    const response = await fetch(`http://localhost:5000/employee-profile/${id}/reactivate`, {
+      method: 'PATCH',
+      credentials: 'include',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || 'Failed to reactivate employee');
+    }
+    return response.json();
+  },
 };

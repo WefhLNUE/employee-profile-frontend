@@ -321,6 +321,17 @@ export default function ChangeRequestDetails() {
               <span className="detail-label">Current Status</span>
               <div><StatusBadge status={request.status} /></div>
             </div>
+            {request.status !== 'PENDING' && request.processedAt && (
+              <div className="detail-item">
+                <span className="detail-label">Processed On</span>
+                <span className="detail-value">
+                  {new Date(request.processedAt).toLocaleString(undefined, {
+                    dateStyle: 'long',
+                    timeStyle: 'short'
+                  })}
+                </span>
+              </div>
+            )}
             <div className="detail-item" style={{ gridColumn: 'span 2' }}>
               <span className="detail-label">Description</span>
               <span className="detail-value" style={{ backgroundColor: '#f9fafb', padding: '1rem', borderRadius: '0.75rem', marginTop: '0.5rem', border: '1px solid #e5e7eb' }}>
