@@ -109,7 +109,17 @@ export enum EmployeeStatus {
   TERMINATED = 'TERMINATED',
 }
 
+export enum MaritalStatus {
+  SINGLE = 'SINGLE',
+  MARRIED = 'MARRIED',
+  DIVORCED = 'DIVORCED',
+  WIDOWED = 'WIDOWED',
+}
+
 export interface UpdateEmployeeAdminForm {
+  firstName?: string;
+  lastName?: string;
+  maritalStatus?: MaritalStatus;
   contractStartDate?: string;
   contractEndDate?: string;
   contractType?: ContractType;

@@ -173,6 +173,10 @@ class APIService {
       }
     );
   }
+
+  getMyChangeRequests(employeeNumber: string): Promise<ChangeRequest[]> {
+    return this.request<ChangeRequest[]>(`/employee-profile/${employeeNumber}/my-profile/change-requests`);
+  }
 }
 
 const api = new APIService();
@@ -181,6 +185,7 @@ const EmployeeProfileDashboard: React.FC = () => {
   const [activeView, setActiveView] = useState<string>('overview');
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
+  const [myChangeRequests, setMyChangeRequests] = useState<ChangeRequest[]>([]);
   const [myProfile, setMyProfile] = useState<Employee | null>(null);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -310,7 +315,22 @@ const EmployeeProfileDashboard: React.FC = () => {
       };
       fetchRequests();
     }
-  }, [activeView]);
+
+    if (activeView === 'my-change-requests' && myProfile) {
+      const fetchMyRequests = async () => {
+        setLoading(true);
+        try {
+          const data = await api.getMyChangeRequests(myProfile.employeeNumber);
+          setMyChangeRequests(data);
+        } catch (err: any) {
+          setError(err.message || 'Failed to fetch your change requests');
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchMyRequests();
+    }
+  }, [activeView, myProfile]);
 
   const loadEmployees = async () => {
     setLoading(true);
@@ -802,16 +822,15 @@ const EmployeeProfileDashboard: React.FC = () => {
               </>
             )}
 
-
-            {/* {hasRole('Recruiter') && (
-              <div 
-                className={`sidebar-item ${activeView === 'create-candidate' ? 'active' : ''}`}
-                onClick={() => setActiveView('create-candidate')}
+            {!isHR && (
+              <div
+                className={`sidebar-item ${activeView === 'my-change-requests' ? 'active' : ''}`}
+                onClick={() => setActiveView('my-change-requests')}
               >
-                <UserPlus size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
-                Add Candidate
+                <Clock size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
+                My Change Requests
               </div>
-            )} */}
+            )}
           </nav>
         </div>
 
@@ -1510,7 +1529,35 @@ const EmployeeProfileDashboard: React.FC = () => {
                         </td>
                       </tr>
                     ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
 
+          {/* My Change Requests List */}
+          {activeView === 'my-change-requests' && (
+            <div>
+              <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>My Profile Change Requests</h2>
+              <div className="card">
+                <table className="table">
+                  <thead>
+                    <tr>
+                      <th>Request ID</th>
+                      <th>Description</th>
+                      <th>Status</th>
+                      <th>Submitted</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {myChangeRequests.map(req => (
+                      <tr key={req.requestId}>
+                        <td>{req.requestId}</td>
+                        <td>{req.requestDescription}</td>
+                        <td><StatusBadge status={req.status} /></td>
+                        <td>{new Date(req.submittedAt).toLocaleDateString()}</td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -1559,72 +1606,74 @@ const EmployeeProfileDashboard: React.FC = () => {
       </div>
 
       {/* Employee Details Modal */}
-      {selectedEmployee && (
-        <div
-          className="modal-overlay"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 50
-          }}
-          onClick={() => setSelectedEmployee(null)}
-        >
+      {
+        selectedEmployee && (
           <div
-            className="modal-content"
-            style={{ width: '90%', maxWidth: '600px' }}
-            onClick={(e) => e.stopPropagation()}
+            className="modal-overlay"
+            style={{
+              position: 'fixed',
+              inset: 0,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 50
+            }}
+            onClick={() => setSelectedEmployee(null)}
           >
-            <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-light)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Employee Details</h3>
-                <button
-                  onClick={() => setSelectedEmployee(null)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    fontSize: '1.5rem',
-                    cursor: 'pointer',
-                    color: 'var(--text-secondary)'
-                  }}
-                >
-                  ×
+            <div
+              className="modal-content"
+              style={{ width: '90%', maxWidth: '600px' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-light)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Employee Details</h3>
+                  <button
+                    onClick={() => setSelectedEmployee(null)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      fontSize: '1.5rem',
+                      cursor: 'pointer',
+                      color: 'var(--text-secondary)'
+                    }}
+                  >
+                    ×
+                  </button>
+                </div>
+              </div>
+              <div style={{ padding: '1.5rem' }}>
+                <div style={{ display: 'grid', gap: '1rem' }}>
+                  <div>
+                    <strong style={{ color: 'var(--text-secondary)' }}>Employee Number:</strong>
+                    <div>{selectedEmployee.employeeNumber}</div>
+                  </div>
+                  <div>
+                    <strong style={{ color: 'var(--text-secondary)' }}>Name:</strong>
+                    <div>{selectedEmployee.firstName} {selectedEmployee.lastName}</div>
+                  </div>
+                  <div>
+                    <strong style={{ color: 'var(--text-secondary)' }}>Email:</strong>
+                    <div>{selectedEmployee.email}</div>
+                  </div>
+                  {selectedEmployee.phone && (
+                    <div>
+                      <strong style={{ color: 'var(--text-secondary)' }}>Phone:</strong>
+                      <div>{selectedEmployee.phone}</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end' }}>
+                <button className="btn-secondary" onClick={() => setSelectedEmployee(null)}>
+                  Close
                 </button>
               </div>
             </div>
-            <div style={{ padding: '1.5rem' }}>
-              <div style={{ display: 'grid', gap: '1rem' }}>
-                <div>
-                  <strong style={{ color: 'var(--text-secondary)' }}>Employee Number:</strong>
-                  <div>{selectedEmployee.employeeNumber}</div>
-                </div>
-                <div>
-                  <strong style={{ color: 'var(--text-secondary)' }}>Name:</strong>
-                  <div>{selectedEmployee.firstName} {selectedEmployee.lastName}</div>
-                </div>
-                <div>
-                  <strong style={{ color: 'var(--text-secondary)' }}>Email:</strong>
-                  <div>{selectedEmployee.email}</div>
-                </div>
-                {selectedEmployee.phone && (
-                  <div>
-                    <strong style={{ color: 'var(--text-secondary)' }}>Phone:</strong>
-                    <div>{selectedEmployee.phone}</div>
-                  </div>
-                )}
-              </div>
-            </div>
-            <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end' }}>
-              <button className="btn-secondary" onClick={() => setSelectedEmployee(null)}>
-                Close
-              </button>
-            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 
