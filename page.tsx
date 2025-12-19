@@ -437,6 +437,11 @@ const EmployeeProfileDashboard: React.FC = () => {
       setSuccess('Profile updated successfully');
       await fetchMyProfile();
 
+      // Reload page after a short delay to update menubar with new photo
+      setTimeout(() => {
+        window.location.reload();
+      }, 500);
+
     } catch (err: any) {
       console.error(err);
       setError(err.message || 'Failed to update profile');
@@ -971,6 +976,25 @@ const EmployeeProfileDashboard: React.FC = () => {
 
               <div className="card" style={{ marginBottom: '1.5rem' }}>
                 <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Profile Information</h3>
+
+                {/* Profile Picture Display */}
+                {myProfile.profilePictureUrl && (
+                  <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
+                    <img
+                      src={myProfile.profilePictureUrl}
+                      alt="Profile"
+                      style={{
+                        width: '120px',
+                        height: '120px',
+                        objectFit: 'cover',
+                        borderRadius: '50%',
+                        border: '3px solid var(--primary-200)',
+                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
+                      }}
+                    />
+                  </div>
+                )}
+
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
                   <div>
                     <strong>Name:</strong> {myProfile.firstName} {myProfile.lastName}
@@ -1028,12 +1052,59 @@ const EmployeeProfileDashboard: React.FC = () => {
                 <form onSubmit={updateSelfProfile}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
                     <div className="form-group">
-                      <label className="form-label">Profile Picture URL</label>
-                      <input
-                        className="form-input"
-                        value={selfUpdateForm.profilePictureUrl}
-                        onChange={(e) => setSelfUpdateForm({ ...selfUpdateForm, profilePictureUrl: e.target.value })}
-                      />
+                      <label className="form-label">Profile Picture</label>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        {/* File Upload */}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="form-input"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              // Check file size (max 2MB)
+                              if (file.size > 2 * 1024 * 1024) {
+                                setError('Image size must be less than 2MB');
+                                return;
+                              }
+
+                              // Convert to base64
+                              const reader = new FileReader();
+                              reader.onloadend = () => {
+                                setSelfUpdateForm({
+                                  ...selfUpdateForm,
+                                  profilePictureUrl: reader.result as string
+                                });
+                              };
+                              reader.readAsDataURL(file);
+                            }
+                          }}
+                        />
+                        {/* URL Input (alternative) */}
+                        <input
+                          className="form-input"
+                          placeholder="Or paste image URL"
+                          value={selfUpdateForm.profilePictureUrl}
+                          onChange={(e) => setSelfUpdateForm({ ...selfUpdateForm, profilePictureUrl: e.target.value })}
+                        />
+                        {/* Preview */}
+                        {selfUpdateForm.profilePictureUrl && (
+                          <div style={{ marginTop: '0.5rem' }}>
+                            <img
+                              src={selfUpdateForm.profilePictureUrl}
+                              alt="Preview"
+                              style={{
+                                width: '100px',
+                                height: '100px',
+                                objectFit: 'cover',
+                                borderRadius: '50%',
+                                border: '2px solid var(--border-light)'
+                              }}
+                              onError={() => setError('Invalid image URL or file')}
+                            />
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <div className="form-group">
                       <label className="form-label">Personal Email</label>
