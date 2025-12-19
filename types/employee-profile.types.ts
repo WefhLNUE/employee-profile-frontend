@@ -128,20 +128,40 @@ export enum MaritalStatus {
   WIDOWED = 'WIDOWED',
 }
 
+export enum AppraisalRatingScaleType {
+  THREE_POINT = 'THREE_POINT',
+  FIVE_POINT = 'FIVE_POINT',
+  TEN_POINT = 'TEN_POINT',
+}
+
 export interface UpdateEmployeeAdminForm {
   firstName?: string;
   lastName?: string;
   maritalStatus?: MaritalStatus;
+  employeeNumber?: string;
+  dateOfHire?: string;
+  workEmail?: string;
+  biography?: string;
   contractStartDate?: string;
   contractEndDate?: string;
   contractType?: ContractType;
   workType?: WorkType;
   status?: EmployeeStatus;
   statusEffectiveFrom?: string;
+  bankName?: string;
+  bankAccountNumber?: string;
   primaryPositionId?: string;
   primaryDepartmentId?: string;
   supervisorPositionId?: string;
   payGradeId?: string;
+  lastAppraisalRecordId?: string;
+  lastAppraisalCycleId?: string;
+  lastAppraisalTemplateId?: string;
+  lastAppraisalDate?: string;
+  lastAppraisalScore?: number;
+  lastAppraisalRatingLabel?: string;
+  lastAppraisalScaleType?: AppraisalRatingScaleType;
+  lastDevelopmentPlanSummary?: string;
   permissions?: string[];
   roles?: string[];
 }
