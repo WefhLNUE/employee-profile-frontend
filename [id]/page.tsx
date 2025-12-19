@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { api } from '../services/api';
-import { UpdateEmployeeAdminForm, ContractType, WorkType, EmployeeStatus, SystemRole } from '../types/employee-profile.types';
+import { UpdateEmployeeAdminForm, ContractType, WorkType, EmployeeStatus, SystemRole, MaritalStatus, AppraisalRatingScaleType } from '../types/employee-profile.types';
 
 export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromContext?: string }) {
   const router = useRouter();
@@ -64,11 +64,37 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
         setSupervisors(supervisorData);
         setUniquePermissions(permissionsData);
         setMyRoles(rolesData);
-        setEditForm(prev => ({
-          ...prev,
+        setEditForm({
+          firstName: employeeData.firstName || '',
+          lastName: employeeData.lastName || '',
+          maritalStatus: employeeData.maritalStatus,
+          employeeNumber: employeeData.employeeNumber || '',
+          dateOfHire: employeeData.dateOfHire ? new Date(employeeData.dateOfHire).toISOString().split('T')[0] : '',
+          workEmail: employeeData.workEmail || '',
+          biography: employeeData.biography || '',
+          contractStartDate: employeeData.contractStartDate ? new Date(employeeData.contractStartDate).toISOString().split('T')[0] : '',
+          contractEndDate: employeeData.contractEndDate ? new Date(employeeData.contractEndDate).toISOString().split('T')[0] : '',
+          contractType: employeeData.contractType,
+          workType: employeeData.workType,
+          status: employeeData.status,
+          statusEffectiveFrom: employeeData.statusEffectiveFrom ? new Date(employeeData.statusEffectiveFrom).toISOString().split('T')[0] : '',
+          bankName: employeeData.bankName || '',
+          bankAccountNumber: employeeData.bankAccountNumber || '',
+          primaryPositionId: employeeData.primaryPositionId?._id || employeeData.primaryPositionId || '',
+          primaryDepartmentId: employeeData.primaryDepartmentId?._id || employeeData.primaryDepartmentId || '',
+          supervisorPositionId: employeeData.supervisorPositionId?._id || employeeData.supervisorPositionId || '',
+          payGradeId: employeeData.payGradeId?._id || employeeData.payGradeId || '',
+          lastAppraisalRecordId: employeeData.lastAppraisalRecordId?._id || employeeData.lastAppraisalRecordId || '',
+          lastAppraisalCycleId: employeeData.lastAppraisalCycleId?._id || employeeData.lastAppraisalCycleId || '',
+          lastAppraisalTemplateId: employeeData.lastAppraisalTemplateId?._id || employeeData.lastAppraisalTemplateId || '',
+          lastAppraisalDate: employeeData.lastAppraisalDate ? new Date(employeeData.lastAppraisalDate).toISOString().split('T')[0] : '',
+          lastAppraisalScore: employeeData.lastAppraisalScore,
+          lastAppraisalRatingLabel: employeeData.lastAppraisalRatingLabel || '',
+          lastAppraisalScaleType: employeeData.lastAppraisalScaleType,
+          lastDevelopmentPlanSummary: employeeData.lastDevelopmentPlanSummary || '',
           permissions: employeeData.permissions || [],
           roles: employeeData.roles || []
-        }));
+        });
         console.log(permissionsData)
       })
       .catch((err: any) =>
@@ -147,7 +173,7 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
         padding: '2rem',
       }}
     >
-      <div className="card" style={{ maxWidth: '800px', margin: '0 auto' }}>
+      <div className="card" style={{ maxWidth: '800px', margin: '0 auto', overflowX: 'hidden' }}>
         <div className="card-header">
           <h2 style={{ margin: 0, fontSize: '1.5rem' }}>
             Employee Details
@@ -201,12 +227,95 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
               <h3>Admin Edit</h3>
               <form onSubmit={handleUpdate} style={{ display: 'grid', gap: '1rem', marginTop: '1rem' }}>
 
+                {/* Account & Personal Info */}
+                <h4 style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem', marginTop: '0.5rem' }}>Account & Personal Info</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">First Name *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editForm.firstName || ''}
+                      onChange={e => handleChange('firstName', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Last Name *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editForm.lastName || ''}
+                      onChange={e => handleChange('lastName', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">Employee Number *</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editForm.employeeNumber || ''}
+                      onChange={e => handleChange('employeeNumber', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Marital Status</label>
+                    <select
+                      className="form-input"
+                      value={editForm.maritalStatus || ''}
+                      onChange={e => handleChange('maritalStatus', e.target.value)}
+                    >
+                      <option value="">Select...</option>
+                      {Object.values(MaritalStatus).map(v => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">Work Email</label>
+                    <input
+                      type="email"
+                      className="form-input"
+                      value={editForm.workEmail || ''}
+                      onChange={e => handleChange('workEmail', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Date of Hire</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={editForm.dateOfHire || ''}
+                      onChange={e => handleChange('dateOfHire', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label">Biography</label>
+                  <textarea
+                    className="form-input"
+                    rows={2}
+                    value={editForm.biography || ''}
+                    onChange={e => handleChange('biography', e.target.value)}
+                    style={{ width: '100%', resize: 'vertical' }}
+                  />
+                </div>
+
+                {/* Contract & Status */}
+                <h4 style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem', marginTop: '1rem' }}>Contract & Status</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
                     <label className="form-label">Contract Start Date</label>
                     <input
                       type="date"
                       className="form-input"
+                      value={editForm.contractStartDate || ''}
                       onChange={e => handleChange('contractStartDate', e.target.value)}
                     />
                   </div>
@@ -215,6 +324,7 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                     <input
                       type="date"
                       className="form-input"
+                      value={editForm.contractEndDate || ''}
                       onChange={e => handleChange('contractEndDate', e.target.value)}
                     />
                   </div>
@@ -223,7 +333,11 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
                     <label className="form-label">Contract Type</label>
-                    <select className="form-input" onChange={e => handleChange('contractType', e.target.value)}>
+                    <select
+                      className="form-input"
+                      value={editForm.contractType || ''}
+                      onChange={e => handleChange('contractType', e.target.value)}
+                    >
                       <option value="">Select...</option>
                       {Object.values(ContractType).map(v => (
                         <option key={v} value={v}>{v}</option>
@@ -232,7 +346,11 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                   </div>
                   <div>
                     <label className="form-label">Work Type</label>
-                    <select className="form-input" onChange={e => handleChange('workType', e.target.value)}>
+                    <select
+                      className="form-input"
+                      value={editForm.workType || ''}
+                      onChange={e => handleChange('workType', e.target.value)}
+                    >
                       <option value="">Select...</option>
                       {Object.values(WorkType).map(v => (
                         <option key={v} value={v}>{v}</option>
@@ -244,7 +362,11 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
                     <label className="form-label">Status</label>
-                    <select className="form-input" onChange={e => handleChange('status', e.target.value)}>
+                    <select
+                      className="form-input"
+                      value={editForm.status || ''}
+                      onChange={e => handleChange('status', e.target.value)}
+                    >
                       <option value="">Select...</option>
                       {Object.values(EmployeeStatus).map(v => (
                         <option key={v} value={v}>{v}</option>
@@ -256,18 +378,21 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                     <input
                       type="date"
                       className="form-input"
+                      value={editForm.statusEffectiveFrom || ''}
                       onChange={e => handleChange('statusEffectiveFrom', e.target.value)}
                     />
                   </div>
                 </div>
 
+                {/* Organization */}
+                <h4 style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem', marginTop: '1rem' }}>Organization</h4>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                   <div>
                     <label className="form-label">Primary Position</label>
                     <select
                       className="form-input"
+                      value={editForm.primaryPositionId || ''}
                       onChange={e => handleChange('primaryPositionId', e.target.value)}
-                      defaultValue=""
                     >
                       <option value="">Select Position...</option>
                       {positions.map(pos => (
@@ -281,8 +406,8 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                     <label className="form-label">Primary Department</label>
                     <select
                       className="form-input"
+                      value={editForm.primaryDepartmentId || ''}
                       onChange={e => handleChange('primaryDepartmentId', e.target.value)}
-                      defaultValue=""
                     >
                       <option value="">Select Department...</option>
                       {departments.map(dept => (
@@ -299,27 +424,146 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                     <label className="form-label">Supervisor</label>
                     <select
                       className="form-input"
+                      value={editForm.supervisorPositionId || ''}
                       onChange={e => handleChange('supervisorPositionId', e.target.value)}
-                      defaultValue=""
                     >
                       <option value="">Select Supervisor...</option>
                       {supervisors.map(sup => (
-                        <option key={sup._id} value={sup.primaryPositionId}>
+                        <option key={sup._id} value={sup.primaryPositionId || sup._id}>
                           {sup.firstName} {sup.lastName} ({sup.employeeNumber})
                         </option>
                       ))}
                     </select>
                   </div>
                   <div>
-                    <label className="form-label">Pay Grade ID</label>
+                    <label className="form-label">Grade</label>
                     <input
                       type="text"
                       className="form-input"
-                      placeholder="Pay Grade ID"
+                      value={editForm.payGradeId || ''}
                       onChange={e => handleChange('payGradeId', e.target.value)}
+                      style={{ width: '100%', boxSizing: 'border-box' }}
                     />
                   </div>
                 </div>
+
+                {/* Banking */}
+                <h4 style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem', marginTop: '1rem' }}>Banking Details</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">Bank Name</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editForm.bankName || ''}
+                      onChange={e => handleChange('bankName', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Bank Account Number</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editForm.bankAccountNumber || ''}
+                      onChange={e => handleChange('bankAccountNumber', e.target.value)}
+                    />
+                  </div>
+                </div>
+
+                {/* Performance & Appraisal */}
+                <h4 style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem', marginTop: '1rem' }}>Performance & Appraisal</h4>
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">Last Appraisal Record ID</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editForm.lastAppraisalRecordId || ''}
+                      onChange={e => handleChange('lastAppraisalRecordId', e.target.value)}
+                      style={{ width: '100%', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Cycle Type</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editForm.lastAppraisalCycleId || ''}
+                      onChange={e => handleChange('lastAppraisalCycleId', e.target.value)}
+                      style={{ width: '100%', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Last Appraisal Template ID</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editForm.lastAppraisalTemplateId || ''}
+                      onChange={e => handleChange('lastAppraisalTemplateId', e.target.value)}
+                      style={{ width: '100%', boxSizing: 'border-box' }}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">Last Appraisal Date</label>
+                    <input
+                      type="date"
+                      className="form-input"
+                      value={editForm.lastAppraisalDate || ''}
+                      onChange={e => handleChange('lastAppraisalDate', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Last Appraisal Score</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="form-input"
+                      value={editForm.lastAppraisalScore ?? ''}
+                      onChange={e => handleChange('lastAppraisalScore', parseFloat(e.target.value))}
+                    />
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div>
+                    <label className="form-label">Last Appraisal Rating Label</label>
+                    <input
+                      type="text"
+                      className="form-input"
+                      value={editForm.lastAppraisalRatingLabel || ''}
+                      onChange={e => handleChange('lastAppraisalRatingLabel', e.target.value)}
+                    />
+                  </div>
+                  <div>
+                    <label className="form-label">Last Appraisal Scale Type</label>
+                    <select
+                      className="form-input"
+                      value={editForm.lastAppraisalScaleType || ''}
+                      onChange={e => handleChange('lastAppraisalScaleType', e.target.value)}
+                    >
+                      <option value="">Select...</option>
+                      {Object.values(AppraisalRatingScaleType).map(v => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="form-label">Last Development Plan Summary</label>
+                  <textarea
+                    className="form-input"
+                    rows={2}
+                    value={editForm.lastDevelopmentPlanSummary || ''}
+                    onChange={e => handleChange('lastDevelopmentPlanSummary', e.target.value)}
+                    style={{ width: '100%', resize: 'vertical' }}
+                  />
+                </div>
+
+                <h4 style={{ borderBottom: '1px solid var(--border-light)', paddingBottom: '0.5rem', marginTop: '1rem' }}>Permissions & Access</h4>
 
                 <div style={{ padding: '1rem', border: '1px solid var(--border-light)', borderRadius: '0.5rem', backgroundColor: 'rgba(0,0,0,0.02)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.75rem' }}>
@@ -460,7 +704,15 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                   </div>
                 </div>
 
-                <div style={{ display: 'flex', gap: '1rem', marginTop: '1rem', alignItems: 'center' }}>
+                <div style={{
+                  display: 'flex',
+                  flexWrap: 'wrap',
+                  gap: '1rem',
+                  marginTop: '1.5rem',
+                  alignItems: 'center',
+                  borderTop: '1px solid var(--border-light)',
+                  paddingTop: '1.5rem'
+                }}>
                   <button type="submit" className="btn-primary">Update Employee</button>
                   {/* Deactivate Button for HR Admin */}
                   {myRoles.includes(SystemRole.HR_ADMIN) && (
@@ -477,12 +729,14 @@ export default function EmployeeDetailsPage({ tokenFromContext }: { tokenFromCon
                       Deactivate Profile
                     </button>
                   )}
-                  <div style={{ flex: 1 }}></div>
-                  <div style={{ marginTop: '0' }}>
-                    <button className="btn-primary" onClick={() => router.push('/employee-profile?view=employees')}>
-                      Back
-                    </button>
-                  </div>
+                  <div style={{ flex: '1 1 auto', minWidth: '1rem' }}></div>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    onClick={() => router.push('/employee-profile?view=employees')}
+                  >
+                    Back to List
+                  </button>
                 </div>
               </form>
             </div>
