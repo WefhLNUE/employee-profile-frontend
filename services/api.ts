@@ -1,4 +1,5 @@
 import { UpdateEmployeeAdminForm } from '../types/employee-profile.types';
+import { API_URL } from '@/lib/config';
 
 const getAuthHeaders = (): Record<string, string> => {
   const token = localStorage.getItem('token');
@@ -11,7 +12,7 @@ const getAuthHeaders = (): Record<string, string> => {
 
 export const api = {
   getChangeRequestById: async (requestId: string) => {
-    const res = await fetch(`http://localhost:5000/employee-profile/change-request/${requestId}`, {
+    const res = await fetch(`${API_URL}/employee-profile/change-request/${requestId}`, {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
@@ -23,7 +24,7 @@ export const api = {
   },
 
   getEmployeeById: async (employeeId: string) => {
-    const res = await fetch(`http://localhost:5000/employee-profile/${employeeId}`, {
+    const res = await fetch(`${API_URL}/employee-profile/${employeeId}`, {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -41,7 +42,7 @@ export const api = {
 
 
   reviewChangeRequest: async (requestId: string, body: { action: string; patch?: any }) => {
-    const res = await fetch(`http://localhost:5000/employee-profile/change-request/${requestId}/review`, {
+    const res = await fetch(`${API_URL}/employee-profile/change-request/${requestId}/review`, {
       method: 'POST',
       credentials: 'include',
       headers: {
@@ -55,7 +56,7 @@ export const api = {
   },
 
   updateEmployeeAdmin: async (id: string, body: UpdateEmployeeAdminForm) => {
-    const res = await fetch(`http://localhost:5000/employee-profile/${id}/admin`, {
+    const res = await fetch(`${API_URL}/employee-profile/${id}/admin`, {
       method: 'PUT',
       credentials: 'include',
       headers: {
@@ -69,7 +70,7 @@ export const api = {
   },
 
   getAllDepartments: async () => {
-    const res = await fetch(`http://localhost:5000/organization-structure/departments`, {
+    const res = await fetch(`${API_URL}/organization-structure/departments`, {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -81,7 +82,7 @@ export const api = {
   },
 
   getAllPositions: async () => {
-    const res = await fetch(`http://localhost:5000/organization-structure/positions`, {
+    const res = await fetch(`${API_URL}/organization-structure/positions`, {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -93,7 +94,7 @@ export const api = {
   },
 
   getSupervisors: async () => {
-    const res = await fetch(`http://localhost:5000/employee-profile/supervisors`, {
+    const res = await fetch(`${API_URL}/employee-profile/supervisors`, {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -105,7 +106,7 @@ export const api = {
   },
 
   getUniquePermissions: async () => {
-    const res = await fetch(`http://localhost:5000/employee-profile/unique-permissions`, {
+    const res = await fetch(`${API_URL}/employee-profile/unique-permissions`, {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -117,7 +118,7 @@ export const api = {
   },
 
   getMyRoles: async () => {
-    const res = await fetch(`http://localhost:5000/employee-profile/myrole`, {
+    const res = await fetch(`${API_URL}/employee-profile/myrole`, {
       method: 'GET',
       credentials: 'include',
       headers: {
@@ -129,7 +130,7 @@ export const api = {
     return data.roles;
   },
   deactivateEmployee: async (id: string, status: string) => {
-    const response = await fetch(`http://localhost:5000/employee-profile/${id}/deactivate`, {
+    const response = await fetch(`${API_URL}/employee-profile/${id}/deactivate`, {
       method: 'PATCH',
       credentials: 'include',
       headers: {
@@ -146,7 +147,7 @@ export const api = {
     return response.json();
   },
   reactivateEmployee: async (id: string) => {
-    const response = await fetch(`http://localhost:5000/employee-profile/${id}/reactivate`, {
+    const response = await fetch(`${API_URL}/employee-profile/${id}/reactivate`, {
       method: 'PATCH',
       credentials: 'include',
       headers: {
