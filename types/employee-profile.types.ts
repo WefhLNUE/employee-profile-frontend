@@ -25,6 +25,10 @@ export interface Employee {
   permissionsLastUpdated?: string | Date;
   status?: EmployeeStatus;
   dateOfHire?: string | Date;
+  maritalStatus?: MaritalStatus;
+  dateOfBirth?: string | Date;
+  gender?: string;
+  nationalId?: string;
   // Appraisal fields
   lastAppraisalRecordId?: any;
   lastAppraisalCycleId?: any;
@@ -39,6 +43,7 @@ export interface Employee {
 export interface ChangeRequest {
   requestId: string;
   employeeProfileId: {
+    _id: string;
     firstName: string;
     lastName: string;
   };

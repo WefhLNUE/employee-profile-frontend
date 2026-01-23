@@ -1,6 +1,11 @@
 'use client';
-import React, { useState, useEffect, Suspense } from 'react';
-import { User, Users, FileText, UserPlus, CheckCircle, AlertCircle, Clock, Search, ArrowUpDown } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import OrgChangeRequestModal from './components/OrgChangeRequestModal';
+import {
+  User, Users, FileText, UserPlus, CheckCircle, AlertCircle,
+  Clock, Search, ArrowUpDown, Briefcase, Shield, Network,
+  Send, Mail, RefreshCw
+} from 'lucide-react';
 import type {
   Address,
   Employee,
@@ -13,7 +18,6 @@ import type {
   APIResponse,
 } from '@/app/employee-profile/types/employee-profile.types';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { RefreshCw } from 'lucide-react';
 import { SystemRole, EmployeeStatus } from './types/employee-profile.types';
 
 // API Service
@@ -177,6 +181,13 @@ class APIService {
   getMyChangeRequests(employeeNumber: string): Promise<ChangeRequest[]> {
     return this.request<ChangeRequest[]>(`/employee-profile/${employeeNumber}/my-profile/change-requests`);
   }
+
+  async sendNotification(data: { to: string; message: string }): Promise<any> {
+    return this.request<any>('/notifications/send', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  }
 }
 
 const api = new APIService();
@@ -208,11 +219,30 @@ const EmployeeProfileDashboard: React.FC = () => {
   const getSortedData = (data: any[]) => {
     if (!sortConfig) return data;
     const { key, direction } = sortConfig;
-    return [...data].sort((a, b) => {
-      const aValue = a[key] || '';
-      const bValue = b[key] || '';
-      if (aValue < bValue) return direction === 'asc' ? -1 : 1;
-      if (aValue > bValue) return direction === 'asc' ? 1 : -1;
+    return [...data].sort((a: any, b: any) => {
+      let aValue = a[key];
+      let bValue = b[key];
+
+      // Handle nested department/position objects
+      if (key === 'department') {
+        aValue = a.primaryDepartmentId?.name || '';
+        bValue = b.primaryDepartmentId?.name || '';
+      } else if (key === 'position') {
+        aValue = a.primaryPositionId?.title || '';
+        bValue = b.primaryPositionId?.title || '';
+      } else if (key === 'name') {
+        aValue = `${a.firstName} ${a.lastName}`;
+        bValue = `${b.firstName} ${b.lastName}`;
+      } else {
+        aValue = aValue || '';
+        bValue = bValue || '';
+      }
+
+      const strA = String(aValue).toLowerCase();
+      const strB = String(bValue).toLowerCase();
+
+      if (strA < strB) return direction === 'asc' ? -1 : 1;
+      if (strA > strB) return direction === 'asc' ? 1 : -1;
       return 0;
     });
   };
@@ -224,10 +254,8 @@ const EmployeeProfileDashboard: React.FC = () => {
   // Handle URL view parameter
   useEffect(() => {
     const viewParam = searchParams.get('view') || 'overview';
-    if (viewParam !== activeView) {
-      setActiveView(viewParam);
-    }
-  }, [searchParams, activeView]);
+    setActiveView(viewParam);
+  }, [searchParams]);
 
   const goToDetails = (requestId: string) => {
     router.push(`/employee-profile/change-request/${requestId}`);
@@ -284,6 +312,42 @@ const EmployeeProfileDashboard: React.FC = () => {
 
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [selectedRequestId, setSelectedRequestId] = useState<string | null>(null);
+
+  // Send Notification States
+  const [notificationForm, setNotificationForm] = useState({ targetEmployeeId: '', message: '' });
+  const [recipientSearch, setRecipientSearch] = useState('');
+  const [notifSuccess, setNotifSuccess] = useState('');
+  const [notifError, setNotifError] = useState('');
+  const [isSendingNotif, setIsSendingNotif] = useState(false);
+
+  // Org Change Request Modal State
+  const [isOrgModalOpen, setIsOrgModalOpen] = useState(false);
+  const [isConfirmationOpen, setIsConfirmationOpen] = useState(false);
+  const [orgModalDescription, setOrgModalDescription] = useState('');
+  const [orgModalEmployeeId, setOrgModalEmployeeId] = useState('');
+
+  // ...
+
+  const reviewChangeRequest = async (requestId: string, action: 'APPROVED' | 'REJECTED' | 'CANCELED') => {
+    try {
+      await api.reviewChangeRequest(requestId, { action });
+      setSuccess(`Change request ${action.toLowerCase()}`);
+
+      // Check if it's a standard request (REQ-) and is APPROVED -> Trigger Confirmation
+      if (action === 'APPROVED' && requestId.startsWith('REQ-') && !requestId.startsWith('LEGAL-REQ-')) {
+        const approvedReq = changeRequests.find(r => r.requestId === requestId);
+        setOrgModalDescription(approvedReq?.requestDescription || '');
+        setOrgModalEmployeeId(approvedReq?.employeeProfileId?._id || '');
+        setIsConfirmationOpen(true);
+      }
+
+      const updatedRequests = await api.getAllChangeRequests();
+      setChangeRequests(updatedRequests);
+    } catch (err: any) {
+      console.error('Failed to review change request:', err);
+      setError(err.message || 'Failed to review change request');
+    }
+  };
 
   const hasRole = (r: string): boolean => roles.includes(r);
   const isHR = hasRole('HR Manager') || hasRole('HR Admin');
@@ -345,11 +409,11 @@ const EmployeeProfileDashboard: React.FC = () => {
     if (isHR || isDeptHead || isSystemAdmin) {
       loadEmployees();
     }
-    // Load team members for department heads
-    if (isDeptHead) {
+    // Load team members for department heads ONLY if they have a department assigned
+    if (isDeptHead && currentUser?.primaryDepartmentId) {
       loadMyTeam();
     }
-  }, [roles]); // run after roles are set
+  }, [roles, currentUser]); // run after roles and currentUser are set
 
   useEffect(() => {
     if (activeView === 'change-requests') {
@@ -386,10 +450,10 @@ const EmployeeProfileDashboard: React.FC = () => {
   }, [activeView, myProfile]);
 
   useEffect(() => {
-    if (activeView === 'my-department' && isDeptHead) {
+    if (activeView === 'my-department' && isDeptHead && currentUser?.primaryDepartmentId) {
       loadMyTeam();
     }
-  }, [activeView, isDeptHead]);
+  }, [activeView, isDeptHead, currentUser]);
 
   const loadEmployees = async () => {
     setLoading(true);
@@ -406,6 +470,7 @@ const EmployeeProfileDashboard: React.FC = () => {
   };
 
   const loadMyTeam = async () => {
+    if (!currentUser?.primaryDepartmentId) return;
     setLoading(true);
     setError('');
     try {
@@ -562,17 +627,7 @@ const EmployeeProfileDashboard: React.FC = () => {
     }
   };
 
-  const reviewChangeRequest = async (requestId: string, action: 'APPROVED' | 'REJECTED' | 'CANCELED') => {
-    try {
-      await api.reviewChangeRequest(requestId, { action });
-      setSuccess(`Change request ${action.toLowerCase()}`);
-      const updatedRequests = await api.getAllChangeRequests();
-      setChangeRequests(updatedRequests);
-    } catch (err: any) {
-      console.error('Failed to review change request:', err);
-      setError(err.message || 'Failed to review change request');
-    }
-  };
+
 
   const handleCancelRequest = (requestId: string) => {
     setSelectedRequestId(requestId);
@@ -599,6 +654,30 @@ const EmployeeProfileDashboard: React.FC = () => {
     }
   };
 
+  const handleSendNotification = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!notificationForm.targetEmployeeId || !notificationForm.message) {
+      setNotifError('Please select an employee and enter a message');
+      return;
+    }
+
+    setIsSendingNotif(true);
+    setNotifError('');
+    setNotifSuccess('');
+
+    try {
+      await api.sendNotification({ to: notificationForm.targetEmployeeId, message: notificationForm.message });
+      setNotifSuccess('Notification sent successfully!');
+      setNotificationForm({ targetEmployeeId: '', message: '' });
+      setRecipientSearch('');
+    } catch (err: any) {
+      console.error('Failed to send notification:', err);
+      setNotifError(err.message || 'Failed to send notification');
+    } finally {
+      setIsSendingNotif(false);
+    }
+  };
+
   const filteredEmployees = employees.filter(emp =>
     emp.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     emp.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -616,32 +695,32 @@ const EmployeeProfileDashboard: React.FC = () => {
   };
 
   return (
-    <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-secondary)' }}>
+    <div style={{ minHeight: '100vh', backgroundColor: 'var(--bg-secondary)', zoom: 0.85 }}>
       <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
 
       <style>{`
         :root {
-          --primary-50: #eff6ff;
-          --primary-100: #dbeafe;
-          --primary-200: #bfdbfe;
-          --primary-300: #93c5fd;
-          --primary-400: #60a5fa;
-          --primary-500: #3b82f6;
-          --primary-600: #2563eb;
-          --primary-700: #1d4ed8;
-          --primary-800: #1e40af;
-          --primary-900: #1e3a8a;
+          --primary-50: #f5f3ff;
+          --primary-100: #ede9fe;
+          --primary-200: #ddd6fe;
+          --primary-300: #c4b5fd;
+          --primary-400: #a78bfa;
+          --primary-500: #8b5cf6;
+          --primary-600: #7c3aed;
+          --primary-700: #6d28d9;
+          --primary-800: #5b21b6;
+          --primary-900: #4c1d95;
           
-          --gray-50: #f9fafb;
-          --gray-100: #f3f4f6;
-          --gray-200: #e5e7eb;
-          --gray-300: #d1d5db;
-          --gray-400: #9ca3af;
-          --gray-500: #6b7280;
-          --gray-600: #4b5563;
-          --gray-700: #374151;
-          --gray-800: #1f2937;
-          --gray-900: #111827;
+          --slate-50: #f8fafc;
+          --slate-100: #f1f5f9;
+          --slate-200: #e2e8f0;
+          --slate-300: #cbd5e1;
+          --slate-400: #94a3b8;
+          --slate-500: #64748b;
+          --slate-600: #475569;
+          --slate-700: #334155;
+          --slate-800: #1e293b;
+          --slate-900: #0f172a;
           
           --success: #10b981;
           --success-dark: #059669;
@@ -651,162 +730,183 @@ const EmployeeProfileDashboard: React.FC = () => {
           --error-dark: #dc2626;
           
           --bg-primary: #ffffff;
-          --bg-secondary: #f9fafb;
-          --bg-dark: #1f2937;
-          --bg-hover: #f3f4f6;
+          --bg-secondary: #f8fafc;
+          --bg-dark: #0f172a;
+          --bg-hover: #f1f5f9;
           
-          --text-primary: #111827;
-          --text-secondary: #4b5563;
-          --text-tertiary: #6b7280;
+          --text-primary: #0f172a;
+          --text-secondary: #475569;
+          --text-tertiary: #94a3b8;
           --text-inverse: #ffffff;
           
-          --border-light: #e5e7eb;
-          --border-medium: #d1d5db;
-          --border-focus: #3b82f6;
+          --border-light: #e2e8f0;
+          --border-medium: #cbd5e1;
+          --border-focus: #7c3aed;
+
+          --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+          --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+          --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1), 0 4px 6px -4px rgb(0 0 0 / 0.1);
+          --radius-md: 0.75rem;
+          --radius-lg: 1rem;
         }
         
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; }
+        body { font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif; }
         
         .btn-primary {
           background-color: var(--primary-600);
           color: var(--text-inverse);
           border: none;
           padding: 0.625rem 1.25rem;
-          border-radius: 0.5rem;
-          font-weight: 500;
+          border-radius: var(--radius-md);
+          font-weight: 600;
           cursor: pointer;
-          transition: all 0.2s ease;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+          box-shadow: var(--shadow-sm);
         }
-        .btn-primary:hover { background-color: var(--primary-700); }
+        .btn-primary:hover { 
+          background-color: var(--primary-700);
+          transform: translateY(-1px);
+          box-shadow: var(--shadow-md);
+        }
+        .btn-primary:active { transform: translateY(0); }
         
         .btn-secondary {
-          background-color: var(--gray-100);
+          background-color: var(--bg-primary);
           color: var(--text-primary);
-          border: 1px solid var(--border-medium);
+          border: 1px solid var(--border-light);
           padding: 0.625rem 1.25rem;
-          border-radius: 0.5rem;
-          font-weight: 500;
+          border-radius: var(--radius-md);
+          font-weight: 600;
           cursor: pointer;
           transition: all 0.2s ease;
         }
-        .btn-secondary:hover { background-color: var(--gray-200); }
-        
-        .btn-success {
-          background-color: var(--success);
-          color: var(--text-inverse);
-          border: none;
-          padding: 0.625rem 1.25rem;
-          border-radius: 0.5rem;
-          font-weight: 500;
-          cursor: pointer;
-        }
-        
-        .btn-danger {
-          background-color: var(--error);
-          color: var(--text-inverse);
-          border: none;
-          padding: 0.625rem 1.25rem;
-          border-radius: 0.5rem;
-          font-weight: 500;
-          cursor: pointer;
+        .btn-secondary:hover { 
+          background-color: var(--bg-secondary);
+          border-color: var(--border-medium);
         }
         
         .card {
           background-color: var(--bg-primary);
           border: 1px solid var(--border-light);
-          border-radius: 0.75rem;
+          border-radius: var(--radius-lg);
           padding: 1.5rem;
-          box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+          box-shadow: var(--shadow-md);
+          transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .card:hover {
+          box-shadow: var(--shadow-lg);
         }
         
+        .table-container {
+          background-color: var(--bg-primary);
+          border: 1px solid var(--border-light);
+          border-radius: var(--radius-lg);
+          overflow: hidden;
+          box-shadow: var(--shadow-sm);
+        }
+
         .table {
           width: 100%;
-          background-color: var(--bg-primary);
           border-collapse: collapse;
+          border-spacing: 0;
         }
         .table thead {
-          background-color: var(--gray-50);
-          border-bottom: 2px solid var(--border-medium);
+          background-color: var(--slate-50);
+          border-bottom: 1px solid var(--border-light);
         }
         .table th {
-          color: var(--text-secondary);
+          color: var(--slate-600);
           font-weight: 600;
-          padding: 0.75rem 1rem;
+          padding: 1rem;
           text-align: left;
-          font-size: 0.875rem;
+          font-size: 0.75rem;
           text-transform: uppercase;
+          letter-spacing: 0.05em;
         }
         .table td {
-          padding: 1rem;
+          padding: 1.25rem 1rem;
           border-bottom: 1px solid var(--border-light);
           color: var(--text-primary);
+          font-size: 0.875rem;
+          transition: background-color 0.2s ease;
         }
-        .table tbody tr:hover { background-color: var(--bg-hover); }
+        .table tbody tr:last-child td { border-bottom: none; }
+        .table tbody tr:hover td { background-color: var(--bg-hover); }
         
-        .form-group { margin-bottom: 1.25rem; }
+        .form-group { margin-bottom: 1.5rem; }
         .form-label {
           display: block;
-          color: var(--text-secondary);
-          font-weight: 500;
+          color: var(--slate-700);
+          font-weight: 600;
           margin-bottom: 0.5rem;
           font-size: 0.875rem;
         }
         .form-input {
           width: 100%;
-          padding: 0.625rem 0.875rem;
-          border: 1px solid var(--border-medium);
-          border-radius: 0.5rem;
+          padding: 0.75rem 1rem;
+          border: 1px solid var(--border-light);
+          border-radius: var(--radius-md);
           font-size: 0.875rem;
           color: var(--text-primary);
           background-color: var(--bg-primary);
-          transition: border-color 0.2s ease;
+          transition: all 0.2s ease;
         }
         .form-input:focus {
           outline: none;
-          border-color: var(--border-focus);
-          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+          border-color: var(--primary-500);
+          box-shadow: 0 0 0 4px var(--primary-50);
         }
         
         .badge {
-          display: inline-block;
+          display: inline-flex;
+          align-items: center;
           padding: 0.25rem 0.75rem;
           border-radius: 9999px;
           font-size: 0.75rem;
           font-weight: 600;
-          text-transform: uppercase;
+          letter-spacing: 0.025em;
         }
-        .badge-pending { background-color: #fef3c7; color: #92400e; }
-        .badge-approved { background-color: #d1fae5; color: #065f46; }
-        .badge-rejected { background-color: #fee2e2; color: #991b1b; }
-        
-        .navbar {
-          background-color: var(--bg-primary);
-          border-bottom: 1px solid var(--border-light);
-          padding: 1rem 2rem;
-          box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-        }
+        .badge-pending { background-color: #fffbeb; color: #b45309; }
+        .badge-approved { background-color: #ecfdf5; color: #047857; }
+        .badge-rejected { background-color: #fef2f2; color: #b91c1c; }
+        .badge-cancelled { background-color: #f1f5f9; color: #475569; }
         
         .sidebar {
           background-color: var(--bg-dark);
           color: var(--text-inverse);
-          min-height: 100vh;
-          padding: 1.5rem;
+          height: calc(100vh / 0.85); /* Account for zoom to fill screen */
+          width: 280px;
+          position: sticky;
+          top: 0;
+          padding: 2.5rem 1rem;
+          display: flex;
+          flex-direction: column;
+          gap: 0.5rem;
+          box-shadow: 4px 0 24px rgba(0,0,0,0.1);
+          overflow-y: auto;
+          z-index: 20;
         }
         .sidebar-item {
-          padding: 0.75rem 1rem;
-          border-radius: 0.5rem;
-          color: var(--gray-300);
-          transition: all 0.2s ease;
+          padding: 0.875rem 1.25rem;
+          border-radius: var(--radius-md);
+          color: var(--slate-400);
+          font-weight: 500;
+          display: flex;
+          align-items: center;
+          gap: 0.75rem;
           cursor: pointer;
+          transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
         }
         .sidebar-item:hover {
-          background-color: rgba(255, 255, 255, 0.1);
+          background-color: rgba(255, 255, 255, 0.05);
           color: var(--text-inverse);
+          padding-left: 1.5rem;
         }
         .sidebar-item.active {
           background-color: var(--primary-600);
           color: var(--text-inverse);
+          box-shadow: 0 4px 12px rgba(124, 58, 237, 0.3);
         }
         
         .alert {
@@ -959,14 +1059,24 @@ const EmployeeProfileDashboard: React.FC = () => {
       )}
 
       <div style={{ display: 'flex' }}>
-        {/* Sidebar Navigation */}
-        <div className="sidebar" style={{ width: '250px' }}>
-          <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+        {/* Sidebar */}
+        <div className="sidebar">
+          <div style={{ padding: '0 1rem 1rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.1)', marginBottom: '1.5rem' }}>
+            <div style={{ backgroundColor: 'var(--primary-600)', padding: '0.5rem', borderRadius: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+              <Users size={24} color="white" />
+            </div>
+            <div>
+              <div style={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'white' }}>HR System</div>
+              <div style={{ fontSize: '0.75rem', color: 'var(--slate-400)' }}>Employee Portal</div>
+            </div>
+          </div>
+
+          <nav style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
             <div
               className={`sidebar-item ${activeView === 'overview' ? 'active' : ''}`}
-              onClick={() => router.push('/employee-profile?view=overview')}
+              onClick={() => router.push('/employee-profile')}
             >
-              <User size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
+              <ArrowUpDown size={20} />
               Overview
             </div>
 
@@ -974,7 +1084,7 @@ const EmployeeProfileDashboard: React.FC = () => {
               className={`sidebar-item ${activeView === 'my-profile' ? 'active' : ''}`}
               onClick={() => router.push('/employee-profile?view=my-profile')}
             >
-              <User size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
+              <User size={20} />
               My Profile
             </div>
 
@@ -983,7 +1093,7 @@ const EmployeeProfileDashboard: React.FC = () => {
                 className={`sidebar-item ${activeView === 'employees' ? 'active' : ''}`}
                 onClick={() => router.push('/employee-profile?view=employees')}
               >
-                <Users size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
+                <Users size={20} />
                 All Employees
               </div>
             )}
@@ -993,40 +1103,36 @@ const EmployeeProfileDashboard: React.FC = () => {
                 className={`sidebar-item ${activeView === 'my-department' ? 'active' : ''}`}
                 onClick={() => router.push('/employee-profile?view=my-department')}
               >
-                <Users size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
+                <Users size={20} />
                 My Department
               </div>
             )}
 
             {isRecruiter && (
-              <>
-                <div
-                  className={`sidebar-item ${activeView === 'create-candidate' ? 'active' : ''}`}
-                  onClick={() => router.push('/employee-profile?view=create-candidate')}
-                >
-                  <UserPlus size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
-                  Create Candidate
-                </div>
-              </>
+              <div
+                className={`sidebar-item ${activeView === 'create-candidate' ? 'active' : ''}`}
+                onClick={() => router.push('/employee-profile?view=create-candidate')}
+              >
+                <UserPlus size={20} />
+                Create Candidate
+              </div>
             )}
             {isHR && (
-              <>
-                <div
-                  className={`sidebar-item ${activeView === 'change-requests' ? 'active' : ''}`}
-                  onClick={() => router.push('/employee-profile?view=change-requests')}
-                >
-                  <FileText size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
-                  Change Requests
-                </div>
-              </>
+              <div
+                className={`sidebar-item ${activeView === 'change-requests' ? 'active' : ''}`}
+                onClick={() => router.push('/employee-profile?view=change-requests')}
+              >
+                <FileText size={20} />
+                Change Requests
+              </div>
             )}
 
-            {!isHR && (
+            {!isHR && !isSystemAdmin && (
               <div
                 className={`sidebar-item ${activeView === 'my-change-requests' ? 'active' : ''}`}
                 onClick={() => router.push('/employee-profile?view=my-change-requests')}
               >
-                <Clock size={18} style={{ display: 'inline', marginRight: '0.75rem' }} />
+                <Clock size={20} />
                 My Change Requests
               </div>
             )}
@@ -1039,55 +1145,69 @@ const EmployeeProfileDashboard: React.FC = () => {
           {/* Overview */}
           {activeView === 'overview' && (
             <div>
-              <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Dashboard Overview</h2>
-              <button
-                className="btn-secondary"
-                style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', marginBottom: '1.5rem' }}
-                onClick={() => window.location.reload()} // refresh page
-                title="Refresh Dashboard"
-              >
-                <RefreshCw size={18} />
-                Refresh
-              </button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 style={{ color: 'var(--text-primary)', margin: 0 }}>Dashboard Overview</h2>
+                <button
+                  className="btn-secondary"
+                  style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem', fontSize: '0.875rem' }}
+                  onClick={() => window.location.reload()}
+                  title="Refresh Dashboard"
+                >
+                  <RefreshCw size={16} />
+                  Refresh
+                </button>
+              </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '1.5rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', gap: '1.5rem' }}>
                 {isHR && (
-                  <div className="stat-card">
-                    <Users size={32} style={{ marginBottom: '0.5rem' }} />
-                    <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                      {employees.length}
+                  <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', padding: '1.75rem' }}>
+                    <div style={{ backgroundColor: 'var(--primary-100)', color: 'var(--primary-600)', padding: '1rem', borderRadius: '1rem' }}>
+                      <Users size={28} />
                     </div>
-                    <div style={{ opacity: 0.9 }}>Total Employees</div>
+                    <div>
+                      <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Total Employees</div>
+                      <div style={{ fontSize: '1.75rem', fontWeight: '800', color: 'var(--text-primary)' }}>{employees.length}</div>
+                    </div>
                   </div>
                 )}
 
                 {isDeptHead && (
-                  <div className="stat-card">
-                    <Users size={32} style={{ marginBottom: '0.5rem' }} />
-                    <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                      {myTeam.length}
+                  <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', padding: '1.75rem' }}>
+                    <div style={{ backgroundColor: 'var(--primary-100)', color: 'var(--primary-600)', padding: '1rem', borderRadius: '1rem' }}>
+                      <Users size={28} />
                     </div>
-                    <div style={{ opacity: 0.9 }}>My Team</div>
+                    <div>
+                      <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 500 }}>My Team</div>
+                      <div style={{ fontSize: '1.75rem', fontWeight: '800', color: 'var(--text-primary)' }}>{myTeam.length}</div>
+                    </div>
                   </div>
                 )}
 
                 {isHR && (
-                  <div className="stat-card-warning">
-                    <Clock size={32} style={{ marginBottom: '0.5rem' }} />
-                    <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                      {changeRequests.filter(r => r.status === 'PENDING').length}
+                  <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', padding: '1.75rem' }}>
+                    <div style={{ backgroundColor: '#fffbeb', color: '#b45309', padding: '1rem', borderRadius: '1rem' }}>
+                      <Clock size={28} />
                     </div>
-                    <div style={{ opacity: 0.9 }}>Pending Requests</div>
+                    <div>
+                      <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Pending Requests</div>
+                      <div style={{ fontSize: '1.75rem', fontWeight: '800', color: 'var(--text-primary)' }}>
+                        {changeRequests.filter(r => r.status === 'PENDING').length}
+                      </div>
+                    </div>
                   </div>
                 )}
 
                 {isHR && (
-                  <div className="stat-card-success">
-                    <CheckCircle size={32} style={{ marginBottom: '0.5rem' }} />
-                    <div style={{ fontSize: '2rem', fontWeight: 'bold', marginBottom: '0.25rem' }}>
-                      {changeRequests.filter(r => r.status === 'APPROVED').length}
+                  <div className="card" style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', padding: '1.75rem' }}>
+                    <div style={{ backgroundColor: '#ecfdf5', color: '#047857', padding: '1rem', borderRadius: '1rem' }}>
+                      <CheckCircle size={28} />
                     </div>
-                    <div style={{ opacity: 0.9 }}>Approved Requests</div>
+                    <div>
+                      <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: 500 }}>Approved Requests</div>
+                      <div style={{ fontSize: '1.75rem', fontWeight: '800', color: 'var(--text-primary)' }}>
+                        {changeRequests.filter(r => r.status === 'APPROVED').length}
+                      </div>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1123,109 +1243,130 @@ const EmployeeProfileDashboard: React.FC = () => {
                   Quick Actions
                 </h3>
 
-                <div className="quick-actions-grid">
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(auto-fill, minmax(160px, 1fr))',
+                  gap: '1.25rem',
+                  marginTop: '1.5rem'
+                }}>
                   {/* Common Actions */}
-                  <button className="quick-btn animate-fade-in" onClick={() => router.push('/employee-profile?view=my-profile')} style={{ animationDelay: '0.1s' }}>
-                    <div className="icon-container">
+                  <button className="card" onClick={() => router.push(`/employee-profile?view=my-profile`)} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', border: '1px solid var(--border-light)' }}>
+                    <div style={{ backgroundColor: 'var(--primary-50)', color: 'var(--primary-600)', padding: '1rem', borderRadius: '50%' }}>
                       <User size={24} />
                     </div>
-                    <span>My Profile</span>
+                    <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>My Profile</span>
                   </button>
 
-                  <button className="quick-btn animate-fade-in" onClick={() => { router.push('/employee-profile?view=my-profile'); setTimeout(() => document.getElementById('update-profile')?.scrollIntoView({ behavior: 'smooth' }), 300); }} style={{ animationDelay: '0.2s' }}>
-                    <div className="icon-container">
+                  <button className="card" onClick={() => { router.push('/employee-profile?view=my-profile'); setTimeout(() => document.getElementById('update-profile')?.scrollIntoView({ behavior: 'smooth' }), 300); }} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ backgroundColor: 'var(--primary-50)', color: 'var(--primary-600)', padding: '1rem', borderRadius: '50%' }}>
                       <RefreshCw size={24} />
                     </div>
-                    <span>Update Contact</span>
+                    <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>Update Contact</span>
                   </button>
 
                   {!isHR && (
-                    <button className="quick-btn animate-fade-in" onClick={() => router.push('/employee-profile?view=my-change-requests')} style={{ animationDelay: '0.3s' }}>
-                      <div className="icon-container">
+                    <button className="card" onClick={() => router.push('/employee-profile?view=my-change-requests')} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ backgroundColor: 'var(--primary-50)', color: 'var(--primary-600)', padding: '1rem', borderRadius: '50%' }}>
                         <Clock size={24} />
                       </div>
-                      <span>My Requests</span>
+                      <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>My Requests</span>
                     </button>
                   )}
 
-                  <button className="quick-btn animate-fade-in" onClick={() => router.push('/leaves')} style={{ animationDelay: '0.4s' }}>
-                    <div className="icon-container">
+                  <button className="card" onClick={() => router.push('/leaves')} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                    <div style={{ backgroundColor: 'var(--primary-50)', color: 'var(--primary-600)', padding: '1rem', borderRadius: '50%' }}>
                       <FileText size={24} />
                     </div>
-                    <span>Request Leave</span>
+                    <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>Request Leave</span>
                   </button>
+
+                  {/* Admin Only Actions */}
+                  {(isHR || isHREmployee || isSystemAdmin) && (
+                    <button className="card" onClick={() => router.push('/employee-profile?view=send-notification')} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', border: '1px solid var(--border-light)' }}>
+                      <div style={{ backgroundColor: '#fff7ed', color: '#ea580c', padding: '1rem', borderRadius: '50%' }}>
+                        <Send size={24} />
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <h4 style={{ margin: 0, color: 'var(--slate-900)', fontSize: '0.95rem' }}>Send Notif</h4>
+                        <p style={{ margin: '0.25rem 0 0 0', color: 'var(--slate-500)', fontSize: '0.75rem' }}>Direct Message</p>
+                      </div>
+                    </button>
+                  )}
+
+                  {/* System Admin Direct Creation */}
+                  {isSystemAdmin && (
+                    <>
+                      <button className="card" onClick={() => router.push('/organization-structure/positions/create')} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', border: '1px solid var(--border-light)' }}>
+                        <div style={{ backgroundColor: '#f0fdf4', color: '#16a34a', padding: '1rem', borderRadius: '50%' }}>
+                          <Briefcase size={24} />
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <h4 style={{ margin: 0, color: 'var(--slate-900)', fontSize: '0.95rem' }}>New Position</h4>
+                          <p style={{ margin: '0.25rem 0 0 0', color: 'var(--slate-500)', fontSize: '0.75rem' }}>Direct Create</p>
+                        </div>
+                      </button>
+
+                      <button className="card" onClick={() => router.push('/organization-structure/departments/create')} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', border: '1px solid var(--border-light)' }}>
+                        <div style={{ backgroundColor: '#eff6ff', color: '#2563eb', padding: '1rem', borderRadius: '50%' }}>
+                          <Network size={24} />
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <h4 style={{ margin: 0, color: 'var(--slate-900)', fontSize: '0.95rem' }}>New Dept</h4>
+                          <p style={{ margin: '0.25rem 0 0 0', color: 'var(--slate-500)', fontSize: '0.75rem' }}>Direct Create</p>
+                        </div>
+                      </button>
+                    </>
+                  )}
+
+                  {/* Leadership Change Requests (Managerial roles) */}
+                  {(isHR || isHREmployee || isDeptHead || isSystemAdmin) && (
+                    <>
+                      <button className="card" onClick={() => router.push('/organization-structure/requests/PositionChange')} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', border: '1px solid var(--border-light)' }}>
+                        <div style={{ backgroundColor: '#faf5ff', color: '#7c3aed', padding: '1rem', borderRadius: '50%' }}>
+                          <Briefcase size={24} />
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <h4 style={{ margin: 0, color: 'var(--slate-900)', fontSize: '0.95rem' }}>Pos Change</h4>
+                          <p style={{ margin: '0.25rem 0 0 0', color: 'var(--slate-500)', fontSize: '0.75rem' }}>Request Form</p>
+                        </div>
+                      </button>
+
+                      <button className="card" onClick={() => router.push('/organization-structure/requests/departmentChange')} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', border: '1px solid var(--border-light)' }}>
+                        <div style={{ backgroundColor: '#fdf2f8', color: '#db2777', padding: '1rem', borderRadius: '50%' }}>
+                          <Network size={24} />
+                        </div>
+                        <div style={{ textAlign: 'center' }}>
+                          <h4 style={{ margin: 0, color: 'var(--slate-900)', fontSize: '0.95rem' }}>Dept Change</h4>
+                          <p style={{ margin: '0.25rem 0 0 0', color: 'var(--slate-500)', fontSize: '0.75rem' }}>Request Form</p>
+                        </div>
+                      </button>
+                    </>
+                  )}
+                  {(isRecruiter) && (
+                    <button className="card" onClick={() => router.push('/employee-profile?view=create-candidate')} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem', border: '1px solid var(--border-light)' }}>
+                      <div style={{ backgroundColor: 'var(--primary-50)', color: 'var(--primary-600)', padding: '1rem', borderRadius: '50%' }}>
+                        <UserPlus size={24} />
+                      </div>
+                      <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>Create Candidate</span>
+                    </button>
+                  )}
 
                   {/* Management/HR Directory access */}
                   {(isHR || isHREmployee || isSystemAdmin) && (
-                    <button className="quick-btn animate-fade-in" onClick={() => router.push('/employee-profile?view=employees')} style={{ animationDelay: '0.5s' }}>
-                      <div className="icon-container">
+                    <button className="card" onClick={() => router.push('/employee-profile?view=employees')} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ backgroundColor: 'var(--primary-50)', color: 'var(--primary-600)', padding: '1rem', borderRadius: '50%' }}>
                         <Users size={24} />
                       </div>
-                      <span>Employee Directory</span>
+                      <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>Directory</span>
                     </button>
                   )}
 
                   {isDeptHead && (
-                    <button className="quick-btn animate-fade-in" onClick={() => router.push('/employee-profile?view=my-department')} style={{ animationDelay: '0.5s' }}>
-                      <div className="icon-container">
+                    <button className="card" onClick={() => router.push('/employee-profile?view=my-department')} style={{ cursor: 'pointer', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                      <div style={{ backgroundColor: 'var(--primary-50)', color: 'var(--primary-600)', padding: '1rem', borderRadius: '50%' }}>
                         <Users size={24} />
                       </div>
-                      <span>My Department</span>
-                    </button>
-                  )}
-
-                  {/* Manager/HR Actions */}
-                  {(isDeptHead || isHR || isHREmployee) && (
-                    <button className="quick-btn animate-fade-in" onClick={() => router.push('/time-management')} style={{ animationDelay: '0.6s' }}>
-                      <div className="icon-container">
-                        <Clock size={24} />
-                      </div>
-                      <span>Team Attendance</span>
-                    </button>
-                  )}
-
-                  {isDeptHead && (
-                    <button className="quick-btn animate-fade-in" onClick={() => goToHierarchy()} style={{ animationDelay: '0.7s' }}>
-                      <div className="icon-container">
-                        <Users size={24} />
-                      </div>
-                      <span>Org Hierarchy</span>
-                    </button>
-                  )}
-
-                  {/* HR Actions */}
-                  {(isHR || isHREmployee) && (
-                    <button className="quick-btn animate-fade-in" onClick={() => router.push('/employee-profile?view=change-requests')} style={{ animationDelay: '0.8s' }}>
-                      <div className="icon-container">
-                        <CheckCircle size={24} />
-                      </div>
-                      <span>Review Change Requests</span>
-                    </button>
-                  )}
-
-                  {(isHR || isHREmployee || isRecruiter) && (
-                    <button className="quick-btn animate-fade-in" onClick={() => router.push('/recruitment/candidates/talent-pool')} style={{ animationDelay: '0.9s' }}>
-                      <div className="icon-container">
-                        <Users size={24} />
-                      </div>
-                      <span>Manage Talent</span>
-                    </button>
-                  )}
-
-                  {/* module shortcuts */}
-                  <button className="quick-btn animate-fade-in" onClick={() => router.push('/performance')} style={{ animationDelay: '1.0s' }}>
-                    <div className="icon-container">
-                      <FileText size={24} />
-                    </div>
-                    <span>Performance Review</span>
-                  </button>
-
-                  {(!isDeptHead && !isHR && !isHREmployee) && (
-                    <button className="quick-btn animate-fade-in" onClick={() => router.push('/time-management')} style={{ animationDelay: '1.1s' }}>
-                      <div className="icon-container">
-                        <Clock size={24} />
-                      </div>
-                      <span>My Attendance</span>
+                      <span style={{ fontWeight: 600, fontSize: '0.875rem' }}>My Department</span>
                     </button>
                   )}
                 </div>
@@ -1238,40 +1379,52 @@ const EmployeeProfileDashboard: React.FC = () => {
                     My Team members
                   </h3>
                   {myTeam.length > 0 ? (
-                    <table className="table">
-                      <thead>
-                        <tr>
-                          <th>Employee #</th>
-                          <th>Name</th>
-                          <th>Position</th>
-                          <th>Status</th>
-                          <th>Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {myTeam.map(emp => (
-                          <tr key={emp._id}>
-                            <td>{emp.employeeNumber}</td>
-                            <td>{emp.firstName} {emp.lastName}</td>
-                            <td>{emp.primaryPositionId?.title || 'N/A'}</td>
-                            <td>
-                              <span className={`badge badge-${emp.status?.toLowerCase() || 'active'}`}>
-                                {emp.status || 'ACTIVE'}
-                              </span>
-                            </td>
-                            <td>
-                              <button
-                                className="btn-secondary"
-                                style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
-                                onClick={() => goToEmployeeDetails(emp._id)}
-                              >
-                                View
-                              </button>
-                            </td>
+                    <div className="table-container">
+                      <table className="table">
+                        <thead>
+                          <tr>
+                            <th>Employee #</th>
+                            <th>Name</th>
+                            <th>Position</th>
+                            <th>Status</th>
+                            <th>Actions</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
+                        </thead>
+                        <tbody>
+                          {myTeam.map(emp => (
+                            <tr key={emp._id}>
+                              <td><span style={{ fontWeight: 600, color: 'var(--primary-600)' }}>{emp.employeeNumber}</span></td>
+                              <td style={{ fontWeight: 500 }}>{emp.firstName} {emp.lastName}</td>
+                              <td style={{ color: 'var(--text-secondary)' }}>{emp.primaryPositionId?.title || 'N/A'}</td>
+                              <td>
+                                <span className={`badge badge-${emp.status?.toLowerCase() || 'active'}`}>
+                                  {emp.status || 'ACTIVE'}
+                                </span>
+                              </td>
+                              <td>
+                                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                  <button
+                                    className="btn-secondary"
+                                    style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', borderRadius: '0.5rem' }}
+                                    onClick={() => goToEmployeeDetails(emp._id)}
+                                  >
+                                    View Details
+                                  </button>
+                                  <button
+                                    className="btn-secondary"
+                                    title="View Hierarchy"
+                                    style={{ padding: '0.4rem 0.5rem', fontSize: '0.75rem', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    onClick={() => router.push(`/organization-structure/hierarchy?id=${emp._id}`)}
+                                  >
+                                    <Network size={12} />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
                   ) : (
                     <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-tertiary)' }}>
                       <Users size={48} style={{ marginBottom: '1rem', opacity: 0.2 }} />
@@ -1286,105 +1439,143 @@ const EmployeeProfileDashboard: React.FC = () => {
 
           {/* My Profile */}
           {activeView === 'my-profile' && myProfile && (
-            <div>
-              <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>My Profile</h2>
-
-              <div className="card" id="profile-info" style={{ marginBottom: '1.5rem' }}>
-                <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Profile Information</h3>
-
-                {/* Profile Picture Display */}
-                {myProfile.profilePictureUrl && (
-                  <div style={{ marginBottom: '1.5rem', textAlign: 'center' }}>
-                    <img
-                      src={myProfile.profilePictureUrl}
-                      alt="Profile"
-                      style={{
-                        width: '120px',
-                        height: '120px',
-                        objectFit: 'cover',
-                        borderRadius: '50%',
-                        border: '3px solid var(--primary-200)',
-                        boxShadow: '0 4px 6px rgba(0,0,0,0.1)'
-                      }}
-                    />
-                  </div>
-                )}
-
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
-                  <div>
-                    <strong>Name:</strong> {myProfile.firstName} {myProfile.lastName}
-                  </div>
-                  <div>
-                    <strong>Employee #:</strong> {myProfile.employeeNumber}
-                  </div>
-                  <div>
-                    <strong>Work Email:</strong> {myProfile.workEmail || 'N/A'}
-                  </div>
-                  <div>
-                    <strong>Personal Email:</strong> {myProfile.personalEmail || 'N/A'}
-                  </div>
-                  <div>
-                    <strong>Department:</strong> {myProfile.primaryDepartmentId?.name || 'N/A'}
-                  </div>
-                  <div>
-                    <strong>Position:</strong> {myProfile.primaryPositionId?.title || 'N/A'}
-                  </div>
-                  <div>
-                    <strong>Status:</strong> <span className={`badge badge-${myProfile.status?.toLowerCase() || 'pending'}`}>{myProfile.status || 'N/A'}</span>
-                  </div>
-                  <div>
-                    <strong>Hire Date:</strong> {myProfile.dateOfHire ? new Date(myProfile.dateOfHire).toLocaleDateString() : 'N/A'}
-                  </div>
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <strong>My Roles:</strong> {roles.length > 0 ? (
-                      <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
-                        {roles.map(r => (
-                          <span key={r} className="badge badge-pending" style={{ textTransform: 'uppercase', fontSize: '0.75rem' }}>{r}</span>
-                        ))}
+            <div className="animate-fade-in">
+              {/* Profile Hero Section */}
+              <div className="card" style={{ padding: 0, overflow: 'hidden', marginBottom: '2rem', border: 'none', boxShadow: 'var(--shadow-lg)' }}>
+                <div style={{ height: '160px', background: 'linear-gradient(135deg, var(--primary-600) 0%, var(--primary-800) 100%)', position: 'relative' }}>
+                  <div style={{ position: 'absolute', bottom: '-60px', left: '2rem', display: 'flex', alignItems: 'flex-end', gap: '1.5rem' }}>
+                    <div style={{ padding: '4px', backgroundColor: 'white', borderRadius: '1rem', boxShadow: 'var(--shadow-md)' }}>
+                      {myProfile.profilePictureUrl ? (
+                        <img
+                          src={myProfile.profilePictureUrl}
+                          alt="Profile"
+                          style={{ width: '140px', height: '140px', objectFit: 'cover', borderRadius: '0.75rem' }}
+                        />
+                      ) : (
+                        <div style={{ width: '140px', height: '140px', backgroundColor: 'var(--primary-100)', color: 'var(--primary-600)', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '0.75rem' }}>
+                          <User size={64} />
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ paddingBottom: '1rem' }}>
+                      <h2 style={{ margin: 0, color: 'var(--slate-900)', fontSize: '1.75rem', fontWeight: 800 }}>{myProfile.firstName} {myProfile.lastName}</h2>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
+                        <span className="badge badge-active" style={{ fontSize: '0.75rem', padding: '0.25rem 0.75rem' }}>{myProfile.status || 'ACTIVE'}</span>
+                        <span style={{ color: 'var(--slate-500)', fontSize: '0.875rem', fontWeight: 500 }}>ID: {myProfile.employeeNumber}</span>
                       </div>
-                    ) : 'None assigned'}
+                    </div>
                   </div>
-                  {/* Address Section */}
-                  <div
-                    style={{
-                      gridColumn: 'span 2',
-                      border: '1px solid var(--border-light)',
-                      borderRadius: '0.75rem',
-                      padding: '1rem',
-                      backgroundColor: 'var(--bg-secondary)',
-                    }}
-                  >
-                    <strong
-                      style={{
-                        display: 'block',
-                        marginBottom: '0.75rem',
-                        color: 'var(--text-secondary)',
-                      }}
-                    >
-                      Address
-                    </strong>
+                </div>
+                <div style={{ height: '80px', backgroundColor: 'white' }}></div>
+              </div>
 
-                    <div style={{ marginBottom: '0.25rem' }}>
-                      <strong>Street:</strong>{' '}
-                      {myProfile.address?.streetAddress || 'N/A'}
-                    </div>
-
-                    <div style={{ marginBottom: '0.25rem' }}>
-                      <strong>City:</strong> {myProfile.address?.city || 'N/A'}
-                    </div>
-
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem', marginBottom: '2rem' }}>
+                {/* Employment Details */}
+                <div className="card" style={{ gridColumn: 'span 2' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-light)' }}>
+                    <div style={{ color: 'var(--primary-500)' }}><Briefcase size={20} /></div>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--slate-800)' }}>Employment Information</h3>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem' }}>
                     <div>
-                      <strong>Country:</strong> {myProfile.address?.country || 'N/A'}
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Department</label>
+                      <div style={{ fontWeight: 600, color: 'var(--slate-800)' }}>{myProfile.primaryDepartmentId?.name || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Position</label>
+                      <div style={{ fontWeight: 600, color: 'var(--slate-800)' }}>{myProfile.primaryPositionId?.title || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Work Email</label>
+                      <div style={{ color: 'var(--primary-600)', fontWeight: 500 }}>{myProfile.workEmail || 'N/A'}</div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.25rem' }}>Hire Date</label>
+                      <div style={{ fontWeight: 500 }}>{myProfile.dateOfHire ? new Date(myProfile.dateOfHire).toLocaleDateString() : 'N/A'}</div>
                     </div>
                   </div>
-                  <div style={{ gridColumn: 'span 2' }}>
-                    <strong>Biography:</strong> {myProfile.biography || 'No biography set'}
+                </div>
+
+                {/* Account Roles */}
+                <div className="card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-light)' }}>
+                    <div style={{ color: 'var(--primary-500)' }}><Shield size={20} /></div>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--slate-800)' }}>System Roles</h3>
                   </div>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {roles.length > 0 ? roles.map(r => (
+                      <span key={r} className="badge badge-pending" style={{ fontSize: '0.7rem', fontWeight: 600 }}>{r}</span>
+                    )) : (
+                      <span style={{ color: 'var(--slate-400)', fontSize: '0.875rem' }}>No system roles assigned</span>
+                    )}
+                  </div>
+                </div>
+
+                {/* Contact & Personal */}
+                <div className="card">
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-light)' }}>
+                    <div style={{ color: 'var(--primary-500)' }}><User size={20} /></div>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--slate-800)' }}>Personal & Contact</h3>
+                  </div>
+                  <div style={{ display: 'grid', gap: '1.25rem' }}>
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.125rem' }}>Marital Status</label>
+                        <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{myProfile.maritalStatus || 'N/A'}</div>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.125rem' }}>Gender</label>
+                        <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{myProfile.gender || 'N/A'}</div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.125rem' }}>Date of Birth</label>
+                        <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{myProfile.dateOfBirth ? new Date(myProfile.dateOfBirth).toLocaleDateString() : 'N/A'}</div>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.125rem' }}>National ID</label>
+                        <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{myProfile.nationalId || 'N/A'}</div>
+                      </div>
+                    </div>
+                    <div style={{ borderTop: '1px solid var(--border-light)', paddingTop: '1rem' }}>
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.125rem' }}>Personal Email</label>
+                      <div style={{ fontWeight: 500, fontSize: '0.875rem' }}>{myProfile.personalEmail || <span style={{ color: '#ef4444' }}>N/A</span>}</div>
+                    </div>
+                    <div>
+                      <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.125rem' }}>Street Address</label>
+                      <div style={{ fontSize: '0.875rem' }}>{myProfile.address?.streetAddress || <span style={{ color: '#ef4444' }}>N/A</span>}</div>
+                    </div>
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.125rem' }}>City</label>
+                        <div style={{ fontSize: '0.875rem' }}>{myProfile.address?.city || <span style={{ color: '#ef4444' }}>N/A</span>}</div>
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <label style={{ display: 'block', fontSize: '0.75rem', color: 'var(--slate-500)', fontWeight: 600, textTransform: 'uppercase', marginBottom: '0.125rem' }}>Country</label>
+                        <div style={{ fontSize: '0.875rem' }}>{myProfile.address?.country || <span style={{ color: '#ef4444' }}>N/A</span>}</div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Biography */}
+                <div className="card" style={{ gridColumn: 'span 2' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-light)' }}>
+                    <div style={{ color: 'var(--primary-500)' }}><FileText size={20} /></div>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--slate-800)' }}>Biography</h3>
+                  </div>
+                  <p style={{ color: 'var(--slate-600)', lineHeight: 1.6, fontSize: '0.95rem' }}>
+                    {myProfile.biography || 'No biography provided yet. You can update it below.'}
+                  </p>
                 </div>
               </div>
 
               <div className="card" id="update-profile">
-                <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Update Profile (Immediate)</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-light)' }}>
+                  <div style={{ color: 'var(--primary-500)' }}><RefreshCw size={20} /></div>
+                  <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--slate-800)' }}>Update Profile (Immediate)</h3>
+                </div>
                 <form onSubmit={updateSelfProfile}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
                     <div className="form-group">
@@ -1552,12 +1743,18 @@ const EmployeeProfileDashboard: React.FC = () => {
               </div>
 
               {/* Submit Change Request - BELOW Update Profile */}
-              {(isDeptEmployee || isHREmployee) && (
+              {!isHR && !isSystemAdmin && (
                 <div className="card" style={{ marginTop: '1.5rem' }}>
-                  <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Request Profile Changes</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-light)' }}>
+                    <div style={{ color: 'var(--primary-500)' }}><FileText size={20} /></div>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--slate-800)' }}>Request Profile Changes</h3>
+                  </div>
                   <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
                     Submit a request for critical profile changes that require HR approval.
                   </p>
+
+                  {crSuccess && <div style={{ padding: '0.75rem', marginBottom: '1rem', backgroundColor: 'var(--success-light)', color: 'var(--success)', borderRadius: '0.5rem' }}>{crSuccess}</div>}
+                  {crError && <div style={{ padding: '0.75rem', marginBottom: '1rem', backgroundColor: 'var(--danger-light)', color: 'var(--danger)', borderRadius: '0.5rem' }}>{crError}</div>}
                   <form onSubmit={submitChangeRequest}>
                     <div className="form-group">
                       <label className="form-label">Change Description *</label>
@@ -1589,9 +1786,12 @@ const EmployeeProfileDashboard: React.FC = () => {
               )}
 
               {/* Legal Name/Marital Status Change Request - BELOW Profile Change Request */}
-              {(isDeptEmployee || isHREmployee) && (
+              {!isHR && !isSystemAdmin && (
                 <div className="card" style={{ marginTop: '1.5rem' }}>
-                  <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Legal Name / Marital Status Change Request</h3>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border-light)' }}>
+                    <div style={{ color: 'var(--primary-500)' }}><Shield size={20} /></div>
+                    <h3 style={{ margin: 0, fontSize: '1.1rem', fontWeight: 700, color: 'var(--slate-800)' }}>Legal Name / Marital Status Change Request</h3>
+                  </div>
                   <p style={{ color: 'var(--text-secondary)', marginBottom: '1rem' }}>
                     Submit a request to change your legal name or marital status.
                   </p>
@@ -1658,50 +1858,70 @@ const EmployeeProfileDashboard: React.FC = () => {
                 <h2 style={{ color: 'var(--text-primary)', margin: 0 }}>
                   {isDeptHead ? 'My Team Members' : 'All Employees'}
                 </h2>
-                <div style={{ position: 'relative', width: '300px' }}>
-                  <Search size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-tertiary)' }} />
+                <div style={{ position: 'relative', width: '320px' }}>
+                  <Search size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--slate-400)' }} />
                   <input
                     className="form-input"
                     placeholder="Search employees..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    style={{ paddingLeft: '2.5rem' }}
+                    style={{ paddingLeft: '2.75rem', borderRadius: '0.75rem' }}
                   />
                 </div>
               </div>
 
               {/* ACTIVE EMPLOYEES TABLE */}
-              <div className="card" style={{ marginBottom: '2rem' }}>
-                <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Active Employees</h3>
+              <div className="table-container" style={{ marginBottom: '2.5rem' }}>
+                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-light)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h3 style={{ color: 'var(--slate-800)', fontSize: '1.1rem', fontWeight: 700 }}>Active Employees</h3>
+                  <span style={{ fontSize: '0.875rem', color: 'var(--slate-500)', fontWeight: 500 }}>
+                    Total: {filteredEmployees.filter(emp => emp.status === EmployeeStatus.ACTIVE || !emp.status).length}
+                  </span>
+                </div>
                 <table className="table">
                   <thead>
                     <tr>
                       <th>Employee #</th>
                       <th>Name</th>
-                      <th>Email</th>
-                      <th>Department</th>
+                      <th>Work Email</th>
+                      <th onClick={() => requestSort('department')} style={{ cursor: 'pointer' }}>Department <ArrowUpDown size={12} style={{ marginLeft: '4px' }} /></th>
                       <th>Position</th>
                       <th>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredEmployees
-                      .filter(emp => emp.status === EmployeeStatus.ACTIVE || !emp.status) // defaulting to ACTIVE if undefined
+                    {getSortedData(filteredEmployees)
+                      .filter(emp => emp.status === EmployeeStatus.ACTIVE || !emp.status)
                       .map(emp => (
                         <tr key={emp._id}>
-                          <td>{emp.employeeNumber}</td>
-                          <td>{emp.firstName} {emp.lastName}</td>
-                          <td>{emp.workEmail}</td>
-                          <td>{emp.primaryDepartmentId?.name || 'N/A'}</td>
-                          <td>{emp.primaryPositionId?.title || 'N/A'}</td>
+                          <td><span style={{ fontWeight: 600, color: 'var(--primary-600)' }}>{emp.employeeNumber}</span></td>
+                          <td style={{ fontWeight: 500 }}>{emp.firstName} {emp.lastName}</td>
+                          <td style={{ color: 'var(--slate-600)' }}>{emp.workEmail}</td>
                           <td>
-                            <button
-                              className="btn-secondary"
-                              style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-                              onClick={() => goToEmployeeDetails(emp._id)}
-                            >
-                              View Details
-                            </button>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                              <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: 'var(--primary-500)' }}></div>
+                              {emp.primaryDepartmentId?.name || <span style={{ color: '#ef4444' }}>N/A</span>}
+                            </div>
+                          </td>
+                          <td style={{ color: 'var(--slate-600)' }}>{emp.primaryPositionId?.title || <span style={{ color: '#ef4444' }}>N/A</span>}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                              <button
+                                className="btn-secondary"
+                                style={{ padding: '0.4rem 0.875rem', fontSize: '0.75rem', borderRadius: '0.5rem' }}
+                                onClick={() => goToEmployeeDetails(emp._id)}
+                              >
+                                View Profile
+                              </button>
+                              <button
+                                className="btn-secondary"
+                                title="View Hierarchy"
+                                style={{ padding: '0.4rem 0.6rem', fontSize: '0.75rem', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                onClick={() => router.push(`/organization-structure/hierarchy?id=${emp._id}`)}
+                              >
+                                <Network size={14} />
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}
@@ -1711,8 +1931,10 @@ const EmployeeProfileDashboard: React.FC = () => {
 
               {/* INACTIVE EMPLOYEES TABLE */}
               {isHR && (
-                <div className="card">
-                  <h3 style={{ marginBottom: '1rem', color: 'var(--text-secondary)' }}>Inactive / Terminated Employees</h3>
+                <div className="table-container">
+                  <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-light)' }}>
+                    <h3 style={{ color: 'var(--slate-800)', fontSize: '1.1rem', fontWeight: 700 }}>Inactive / Terminated Employees</h3>
+                  </div>
                   <table className="table">
                     <thead>
                       <tr>
@@ -1724,47 +1946,45 @@ const EmployeeProfileDashboard: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody>
-                      {filteredEmployees
+                      {getSortedData(filteredEmployees)
                         .filter(emp => emp.status && emp.status !== EmployeeStatus.ACTIVE)
                         .map(emp => (
                           <tr key={emp._id}>
-                            <td>{emp.employeeNumber}</td>
-                            <td>{emp.firstName} {emp.lastName}</td>
-                            <td>{emp.workEmail}</td>
+                            <td><span style={{ fontWeight: 600, color: 'var(--slate-500)' }}>{emp.employeeNumber}</span></td>
+                            <td style={{ fontWeight: 500 }}>{emp.firstName} {emp.lastName}</td>
+                            <td style={{ color: 'var(--slate-600)' }}>{emp.workEmail}</td>
                             <td>
-                              <span style={{
-                                padding: '0.25rem 0.75rem',
-                                borderRadius: '1rem',
-                                fontSize: '0.75rem',
-                                fontWeight: 600,
-                                backgroundColor:
-                                  (emp.status === EmployeeStatus.TERMINATED || emp.status === EmployeeStatus.SUSPENDED) ? '#fee2e2' :
-                                    emp.status === EmployeeStatus.RETIRED ? '#e0e7ff' :
-                                      '#f3f4f6',
-                                color:
-                                  (emp.status === EmployeeStatus.TERMINATED || emp.status === EmployeeStatus.SUSPENDED) ? '#b91c1c' :
-                                    emp.status === EmployeeStatus.RETIRED ? '#4338ca' :
-                                      '#374151'
-                              }}>
+                              <span className={`badge badge-${emp.status?.toLowerCase()}`}>
                                 {emp.status}
                               </span>
                             </td>
                             <td>
-                              <button
-                                className="btn-secondary"
-                                style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-                                onClick={() => goToEmployeeDetails(emp._id)}
-                              >
-                                View Details
-                              </button>
+                              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <button
+                                  className="btn-secondary"
+                                  style={{ padding: '0.4rem 0.875rem', fontSize: '0.75rem', borderRadius: '0.5rem' }}
+                                  onClick={() => goToEmployeeDetails(emp._id)}
+                                >
+                                  View Profile
+                                </button>
+                                <button
+                                  className="btn-secondary"
+                                  title="View Hierarchy"
+                                  style={{ padding: '0.4rem 0.6rem', fontSize: '0.75rem', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                  onClick={() => router.push(`/organization-structure/hierarchy?id=${emp._id}`)}
+                                >
+                                  <Network size={14} />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
                     </tbody>
                   </table>
                   {filteredEmployees.filter(emp => emp.status && emp.status !== EmployeeStatus.ACTIVE).length === 0 && (
-                    <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--text-tertiary)' }}>
-                      No inactive employees found.
+                    <div style={{ padding: '2.5rem', textAlign: 'center', color: 'var(--slate-400)' }}>
+                      <Users size={32} style={{ margin: '0 auto 1rem', opacity: 0.1 }} />
+                      <p>No inactive employees found.</p>
                     </div>
                   )}
                 </div>
@@ -1823,7 +2043,7 @@ const EmployeeProfileDashboard: React.FC = () => {
                         </tr>
                       </thead>
                       <tbody>
-                        {myTeam
+                        {getSortedData(myTeam)
                           .filter(emp =>
                             (emp.firstName + ' ' + emp.lastName).toLowerCase().includes(searchTerm.toLowerCase()) ||
                             emp.employeeNumber.toLowerCase().includes(searchTerm.toLowerCase())
@@ -1833,18 +2053,28 @@ const EmployeeProfileDashboard: React.FC = () => {
                               <td>{emp.employeeNumber}</td>
                               <td>{emp.firstName} {emp.lastName}</td>
                               <td>{emp.workEmail}</td>
-                              <td>{emp.primaryPositionId?.title || 'N/A'}</td>
+                              <td>{emp.primaryPositionId?.title || <span style={{ color: '#ef4444' }}>N/A</span>}</td>
                               <td>
                                 <span className="badge badge-active">ACTIVE</span>
                               </td>
                               <td>
-                                <button
-                                  className="btn-secondary"
-                                  style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-                                  onClick={() => goToEmployeeDetails(emp._id)}
-                                >
-                                  View Details
-                                </button>
+                                <div style={{ display: 'flex', gap: '0.4rem' }}>
+                                  <button
+                                    className="btn-secondary"
+                                    style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                                    onClick={() => goToEmployeeDetails(emp._id)}
+                                  >
+                                    View Details
+                                  </button>
+                                  <button
+                                    className="btn-secondary"
+                                    title="View Hierarchy"
+                                    style={{ padding: '0.4rem 0.5rem', fontSize: '0.75rem', borderRadius: '0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                    onClick={() => router.push(`/organization-structure/hierarchy?id=${emp._id}`)}
+                                  >
+                                    <Network size={12} />
+                                  </button>
+                                </div>
                               </td>
                             </tr>
                           ))}
@@ -1921,10 +2151,206 @@ const EmployeeProfileDashboard: React.FC = () => {
               </div>
             </div>
           )} */}
+          {/* Send Notification View */}
+          {activeView === 'send-notification' && (isHR || isHREmployee || isSystemAdmin) && (
+            <div className="animate-fade-in">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 style={{ color: 'var(--text-primary)', margin: 0 }}>Send Employee Notification</h2>
+                <button className="btn-secondary" onClick={() => router.push('/employee-profile')}>
+                  Back to Overview
+                </button>
+              </div>
+
+              <div className="card">
+                <form onSubmit={handleSendNotification}>
+                  <div className="form-group">
+                    <label className="form-label">Search & Select Recipient *</label>
+                    <div style={{ position: 'relative' }}>
+                      <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                        <div style={{ position: 'relative', flex: 1 }}>
+                          <Search size={18} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--slate-400)' }} />
+                          <input
+                            type="text"
+                            className="form-input"
+                            style={{ paddingLeft: '2.5rem' }}
+                            placeholder="Search by name or number..."
+                            value={recipientSearch}
+                            onChange={(e) => setRecipientSearch(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div style={{
+                        maxHeight: '200px',
+                        overflowY: 'auto',
+                        border: '1px solid var(--border-light)',
+                        borderRadius: '0.75rem',
+                        backgroundColor: 'var(--slate-50)',
+                        marginBottom: '1rem'
+                      }}>
+                        {employees
+                          .filter(emp =>
+                            `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(recipientSearch.toLowerCase()) ||
+                            emp.employeeNumber.toLowerCase().includes(recipientSearch.toLowerCase())
+                          )
+                          .map(emp => (
+                            <div
+                              key={emp._id}
+                              style={{
+                                padding: '0.75rem 1rem',
+                                borderBottom: '1px solid var(--border-light)',
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                alignItems: 'center',
+                                cursor: 'pointer',
+                                transition: 'background-color 0.2s',
+                                backgroundColor: notificationForm.targetEmployeeId === emp._id ? 'var(--primary-50)' : 'transparent'
+                              }}
+                              onClick={() => {
+                                setNotificationForm({ ...notificationForm, targetEmployeeId: emp._id });
+                                setRecipientSearch(`${emp.firstName} ${emp.lastName}`);
+                              }}
+                            >
+                              <div>
+                                <div style={{ fontWeight: 600, color: 'var(--slate-800)', fontSize: '0.875rem' }}>
+                                  {emp.firstName} {emp.lastName}
+                                </div>
+                                <div style={{ fontSize: '0.75rem', color: 'var(--slate-500)' }}>
+                                  {emp.employeeNumber} • {emp.primaryDepartmentId?.name || 'No Dept'}
+                                </div>
+                              </div>
+                              {notificationForm.targetEmployeeId === emp._id && (
+                                <CheckCircle size={16} style={{ color: 'var(--success)' }} />
+                              )}
+                            </div>
+                          ))
+                        }
+                        {employees.filter(emp =>
+                          `${emp.firstName} ${emp.lastName}`.toLowerCase().includes(recipientSearch.toLowerCase()) ||
+                          emp.employeeNumber.toLowerCase().includes(recipientSearch.toLowerCase())
+                        ).length === 0 && (
+                            <div style={{ padding: '1rem', textAlign: 'center', color: 'var(--slate-400)', fontSize: '0.875rem' }}>
+                              No employees found matching "{recipientSearch}"
+                            </div>
+                          )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Message *</label>
+                    <textarea
+                      className="form-input"
+                      rows={4}
+                      required
+                      placeholder="Type your notification message here..."
+                      value={notificationForm.message}
+                      onChange={(e) => setNotificationForm({ ...notificationForm, message: e.target.value })}
+                    />
+                  </div>
+
+                  {/* Preview Section */}
+                  <div style={{
+                    marginTop: '1.5rem',
+                    padding: '1rem',
+                    backgroundColor: 'var(--slate-50)',
+                    borderRadius: '0.75rem',
+                    border: '1px dashed var(--slate-300)'
+                  }}>
+                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: 600, color: 'var(--slate-500)', marginBottom: '0.5rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                      Message Preview
+                    </label>
+                    <div style={{
+                      fontSize: '0.9rem',
+                      color: 'var(--slate-700)',
+                      lineHeight: '1.5',
+                      fontStyle: notificationForm.message ? 'normal' : 'italic'
+                    }}>
+                      {myProfile ? `${myProfile.firstName} ${myProfile.lastName}: ` : 'You: '}
+                      {notificationForm.message || 'Start typing to see preview...'}
+                    </div>
+                  </div>
+
+                  {notifError && <div className="alert alert-error">{notifError}</div>}
+                  {notifSuccess && <div className="alert alert-success">{notifSuccess}</div>}
+
+                  <div style={{ display: 'flex', gap: '1rem', marginTop: '1.5rem' }}>
+                    <button
+                      type="submit"
+                      className="btn-primary"
+                      disabled={isSendingNotif || !notificationForm.targetEmployeeId}
+                      style={{
+                        flex: 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem',
+                        opacity: !notificationForm.targetEmployeeId ? 0.6 : 1
+                      }}
+                    >
+                      <Send size={18} />
+                      {isSendingNotif ? 'Sending...' : 'Send Notification'}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => {
+                        setNotificationForm({ targetEmployeeId: '', message: '' });
+                        setRecipientSearch('');
+                      }}
+                    >
+                      Reset Form
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <div className="card" style={{ marginTop: '2rem' }}>
+                <h3 style={{ marginBottom: '1rem', fontSize: '1.1rem', color: 'var(--slate-800)' }}>Quick Select Recipient</h3>
+                <p style={{ fontSize: '0.875rem', color: 'var(--slate-500)', marginBottom: '1rem' }}>
+                  Frequently used or recent employees.
+                </p>
+                <div className="table-container">
+                  <table className="table">
+                    <thead>
+                      <tr>
+                        <th>Name</th>
+                        <th>Department</th>
+                        <th>Action</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {employees.slice(0, 5).map(emp => (
+                        <tr key={emp._id}>
+                          <td>{emp.firstName} {emp.lastName}</td>
+                          <td>{emp.primaryDepartmentId?.name || <span style={{ color: '#ef4444' }}>N/A</span>}</td>
+                          <td>
+                            <button
+                              className="btn-secondary"
+                              style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem' }}
+                              onClick={() => setNotificationForm({ ...notificationForm, targetEmployeeId: emp._id })}
+                            >
+                              Select
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Create Candidate */}
           {activeView === 'create-candidate' && hasRole('Recruiter') && (
             <div>
-              <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Add New Candidate</h2>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                <h2 style={{ color: 'var(--text-primary)', margin: 0 }}>Add New Candidate</h2>
+                <button className="btn-secondary" onClick={() => router.push('/employee-profile')}>
+                  Back to Overview
+                </button>
+              </div>
               <div className="card">
                 <form onSubmit={createCandidate}>
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem' }}>
@@ -2094,7 +2520,10 @@ const EmployeeProfileDashboard: React.FC = () => {
           {activeView === 'change-requests' && (isHR) && (
             <div>
               <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>Profile Change Requests</h2>
-              <div className="card">
+              <div className="table-container">
+                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-light)' }}>
+                  <h3 style={{ color: 'var(--slate-800)', fontSize: '1.1rem', fontWeight: 700 }}>Profile Change Requests</h3>
+                </div>
                 <table className="table">
                   <thead>
                     <tr>
@@ -2114,44 +2543,46 @@ const EmployeeProfileDashboard: React.FC = () => {
                   <tbody>
                     {getSortedData(changeRequests).map(req => (
                       <tr key={req.requestId}>
-                        <td>{req.requestId}</td>
-                        <td>
+                        <td><span style={{ fontWeight: 600, color: 'var(--primary-600)' }}>{req.requestId}</span></td>
+                        <td style={{ fontWeight: 500 }}>
                           {req.employeeProfileId?.firstName} {req.employeeProfileId?.lastName}
                         </td>
-                        <td>{req.requestDescription}</td>
+                        <td style={{ color: 'var(--slate-600)', maxWidth: '250px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{req.requestDescription}</td>
                         <td><StatusBadge status={req.status} /></td>
-                        <td>{new Date(req.submittedAt).toLocaleDateString()}</td>
+                        <td style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>{new Date(req.submittedAt).toLocaleDateString()}</td>
                         <td>
-                          {req.status === 'PENDING' && (
-                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                          {req.status === 'PENDING' ? (
+                            <div style={{ display: 'flex', gap: '0.4rem' }}>
                               <button
-                                className="btn-success"
-                                style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                                className="btn-primary"
+                                style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', backgroundColor: 'var(--success)', borderRadius: '0.5rem' }}
                                 onClick={() => reviewChangeRequest(req.requestId, 'APPROVED')}
                               >
                                 Approve
                               </button>
                               <button
-                                className="btn-danger"
-                                style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
+                                className="btn-primary"
+                                style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', backgroundColor: 'var(--error)', borderRadius: '0.5rem' }}
                                 onClick={() => reviewChangeRequest(req.requestId, 'REJECTED')}
                               >
                                 Reject
                               </button>
                               <button
                                 className="btn-secondary"
-                                style={{ padding: '0.375rem 0.75rem', fontSize: '0.875rem' }}
-                                onClick={() => reviewChangeRequest(req.requestId, 'CANCELED')}
-                              >
-                                Cancel
-                              </button>
-                              <button
-                                className="btn-secondary"
+                                style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', border: 'none', backgroundColor: 'var(--slate-100)', borderRadius: '0.5rem' }}
                                 onClick={() => goToDetails(req.requestId)}
                               >
-                                See Details
+                                Details
                               </button>
                             </div>
+                          ) : (
+                            <button
+                              className="btn-secondary"
+                              style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', borderRadius: '0.5rem' }}
+                              onClick={() => goToDetails(req.requestId)}
+                            >
+                              View Details
+                            </button>
                           )}
                         </td>
                       </tr>
@@ -2166,7 +2597,10 @@ const EmployeeProfileDashboard: React.FC = () => {
           {activeView === 'my-change-requests' && !isHR && (
             <div>
               <h2 style={{ marginBottom: '1.5rem', color: 'var(--text-primary)' }}>My Profile Change Requests</h2>
-              <div className="card">
+              <div className="table-container">
+                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border-light)' }}>
+                  <h3 style={{ color: 'var(--slate-800)', fontSize: '1.1rem', fontWeight: 700 }}>My History</h3>
+                </div>
                 <table className="table">
                   <thead>
                     <tr>
@@ -2185,22 +2619,23 @@ const EmployeeProfileDashboard: React.FC = () => {
                   <tbody>
                     {getSortedData(myChangeRequests).map(req => (
                       <tr key={req.requestId}>
-                        <td>{req.requestId}</td>
-                        <td>{req.requestDescription}</td>
+                        <td><span style={{ fontWeight: 600, color: 'var(--primary-600)' }}>{req.requestId}</span></td>
+                        <td style={{ color: 'var(--slate-600)' }}>{req.requestDescription}</td>
                         <td><StatusBadge status={req.status} /></td>
-                        <td>{new Date(req.submittedAt).toLocaleDateString()}</td>
+                        <td style={{ color: 'var(--slate-500)', fontSize: '0.75rem' }}>{new Date(req.submittedAt).toLocaleDateString()}</td>
                         <td>
                           <div style={{ display: 'flex', gap: '0.5rem' }}>
                             <button
                               className="btn-secondary"
+                              style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', borderRadius: '0.5rem' }}
                               onClick={() => goToDetails(req.requestId)}
                             >
-                              See Details
+                              Details
                             </button>
                             {req.status === 'PENDING' && (
                               <button
                                 className="btn-secondary"
-                                style={{ backgroundColor: '#fee2e2', color: '#991b1b', borderColor: '#fecaca' }}
+                                style={{ padding: '0.4rem 0.75rem', fontSize: '0.75rem', borderRadius: '0.5rem', backgroundColor: '#fff1f2', color: '#e11d48', border: 'none' }}
                                 onClick={() => handleCancelRequest(req.requestId)}
                               >
                                 Cancel
@@ -2277,47 +2712,46 @@ const EmployeeProfileDashboard: React.FC = () => {
               style={{ width: '90%', maxWidth: '600px' }}
               onClick={(e) => e.stopPropagation()}
             >
-              <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-light)' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ margin: 0, color: 'var(--text-primary)' }}>Employee Details</h3>
-                  <button
-                    onClick={() => setSelectedEmployee(null)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      fontSize: '1.5rem',
-                      cursor: 'pointer',
-                      color: 'var(--text-secondary)'
-                    }}
-                  >
-                    ×
-                  </button>
-                </div>
+              <div style={{ padding: '1.5rem', borderBottom: '1px solid var(--border-light)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: 'var(--slate-50)' }}>
+                <h3 style={{ margin: 0, color: 'var(--slate-900)', fontWeight: 700 }}>Employee Details</h3>
+                <button
+                  onClick={() => setSelectedEmployee(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    fontSize: '1.25rem',
+                    cursor: 'pointer',
+                    color: 'var(--slate-400)',
+                    padding: '0.25rem'
+                  }}
+                >
+                  ×
+                </button>
               </div>
-              <div style={{ padding: '1.5rem' }}>
-                <div style={{ display: 'grid', gap: '1rem' }}>
-                  <div>
-                    <strong style={{ color: 'var(--text-secondary)' }}>Employee Number:</strong>
-                    <div>{selectedEmployee.employeeNumber}</div>
+              <div style={{ padding: '2rem' }}>
+                <div style={{ display: 'grid', gap: '1.25rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', borderRadius: '0.75rem', backgroundColor: 'var(--slate-50)' }}>
+                    <span style={{ color: 'var(--slate-500)', fontSize: '0.875rem' }}>Employee ID</span>
+                    <span style={{ fontWeight: 600, color: 'var(--primary-600)' }}>{selectedEmployee.employeeNumber}</span>
                   </div>
-                  <div>
-                    <strong style={{ color: 'var(--text-secondary)' }}>Name:</strong>
-                    <div>{selectedEmployee.firstName} {selectedEmployee.lastName}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', borderBottom: '1px solid var(--border-light)' }}>
+                    <span style={{ color: 'var(--slate-500)', fontSize: '0.875rem' }}>Full Name</span>
+                    <span style={{ fontWeight: 500 }}>{selectedEmployee.firstName} {selectedEmployee.lastName}</span>
                   </div>
-                  <div>
-                    <strong style={{ color: 'var(--text-secondary)' }}>Email:</strong>
-                    <div>{selectedEmployee.email}</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', borderBottom: '1px solid var(--border-light)' }}>
+                    <span style={{ color: 'var(--slate-500)', fontSize: '0.875rem' }}>Email Address</span>
+                    <span style={{ fontWeight: 500 }}>{selectedEmployee.email}</span>
                   </div>
                   {selectedEmployee.phone && (
-                    <div>
-                      <strong style={{ color: 'var(--text-secondary)' }}>Phone:</strong>
-                      <div>{selectedEmployee.phone}</div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.75rem', borderBottom: '1px solid var(--border-light)' }}>
+                      <span style={{ color: 'var(--slate-500)', fontSize: '0.875rem' }}>Phone Number</span>
+                      <span style={{ fontWeight: 500 }}>{selectedEmployee.phone}</span>
                     </div>
                   )}
                 </div>
               </div>
-              <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end' }}>
-                <button className="btn-secondary" onClick={() => setSelectedEmployee(null)}>
+              <div style={{ padding: '1.25rem 2rem', borderTop: '1px solid var(--border-light)', display: 'flex', justifyContent: 'flex-end', backgroundColor: 'var(--slate-50)' }}>
+                <button className="btn-secondary" onClick={() => setSelectedEmployee(null)} style={{ padding: '0.625rem 1.5rem' }}>
                   Close
                 </button>
               </div>
@@ -2368,6 +2802,40 @@ const EmployeeProfileDashboard: React.FC = () => {
           </div>
         )
       }
+      {/* Confirmation Modal */}
+      {isConfirmationOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[60] p-4 backdrop-blur-sm">
+          <div className="bg-white rounded-xl shadow-2xl p-6 max-w-md w-full animate-in fade-in zoom-in duration-200">
+            <h3 className="text-lg font-bold text-slate-800 mb-2">Request Approved</h3>
+            <p className="text-slate-600 mb-6">Do you want to create a follow-up Organizational Change Request (e.g., Update Department/Position)?</p>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setIsConfirmationOpen(false)}
+                className="px-4 py-2 rounded-lg text-slate-600 font-medium hover:bg-slate-100 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setIsConfirmationOpen(false);
+                  setIsOrgModalOpen(true);
+                }}
+                className="px-4 py-2 rounded-lg bg-purple-600 text-white font-medium hover:bg-purple-700 shadow-lg shadow-purple-200 transition-all transform hover:-translate-y-0.5"
+              >
+                Send Request
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Org Change Request Modal */}
+      <OrgChangeRequestModal
+        isOpen={isOrgModalOpen}
+        onClose={() => setIsOrgModalOpen(false)}
+        initialDescription={orgModalDescription}
+        initialEmployeeId={orgModalEmployeeId}
+      />
     </div>
   );
 };
