@@ -25,7 +25,7 @@ class APIService {
   private baseURL: string;
 
   constructor() {
-    this.baseURL = 'http://localhost:5000';
+    this.baseURL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000';
   }
 
   async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
@@ -2840,4 +2840,11 @@ const EmployeeProfileDashboard: React.FC = () => {
   );
 };
 
-export default EmployeeProfileDashboard;
+// Wrapper component with Suspense boundary
+export default function EmployeeProfilePage() {
+  return (
+    <Suspense fallback={<div className="flex items-center justify-center min-h-screen">Loading...</div>}>
+      <EmployeeProfileDashboard />
+    </Suspense>
+  );
+}
