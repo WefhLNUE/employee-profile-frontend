@@ -38,6 +38,7 @@ export default function ChangeRequestDetails() {
   const [supervisors, setSupervisors] = useState<any[]>([]);
   const [roles, setRoles] = useState<string[]>([]);
   const [updating, setUpdating] = useState(false);
+  const [updateSuccess, setUpdateSuccess] = useState<string | null>(null);
 
   // Org Change Request Modal State
   const [isOrgModalOpen, setIsOrgModalOpen] = useState(false);
@@ -47,14 +48,19 @@ export default function ChangeRequestDetails() {
 
   const isHR = roles.includes('HR Manager') || roles.includes('HR Admin');
 
-  const StatusBadge: React.FC<{ status: 'PENDING' | 'APPROVED' | 'REJECTED' | 'CANCELED' }> = ({ status }) => {
+  const StatusBadge: React.FC<{ status: string }> = ({ status }) => {
     const styles: Record<string, string> = {
+      DRAFT: 'badge-draft',
+      SUBMITTED: 'badge-submitted',
       PENDING: 'badge-pending',
+      UNDER_REVIEW: 'badge-under-review',
       APPROVED: 'badge-approved',
       REJECTED: 'badge-rejected',
-      CANCELED: 'badge-cancelled'
+      CANCELED: 'badge-cancelled',
+      IMPLEMENTED: 'badge-implemented'
     };
-    return <span className={`badge ${styles[status]}`}>{status}</span>;
+    const styleClass = styles[status] || 'badge-pending';
+    return <span className={`badge ${styleClass}`}>{status?.replace(/_/g, ' ')}</span>;
   };
 
   useEffect(() => {
@@ -228,6 +234,12 @@ export default function ChangeRequestDetails() {
                   <div className="info-group">
                     <label className="info-label">Request ID</label>
                     <div className="info-value font-mono text-sm">{request.requestId}</div>
+                  </div>
+                  <div className="info-group">
+                    <label className="info-label">Status</label>
+                    <div>
+                      <StatusBadge status={request.status} />
+                    </div>
                   </div>
                   <div className="info-group">
                     <label className="info-label">Submitted On</label>
@@ -671,8 +683,12 @@ export default function ChangeRequestDetails() {
            font-weight: 600;
            text-transform: capitalize;
         }
+        .badge-draft { background-color: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
+        .badge-submitted { background-color: #eff6ff; color: #1d4ed8; border: 1px solid #dbeafe; }
         .badge-pending { background-color: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
+        .badge-under-review { background-color: #fff7ed; color: #c2410c; border: 1px solid #ffedd5; }
         .badge-approved { background-color: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
+        .badge-implemented { background-color: #f0fdf4; color: #15803d; border: 1px solid #dcfce7; }
         .badge-rejected { background-color: #fef2f2; color: #b91c1c; border: 1px solid #fee2e2; }
         .badge-cancelled { background-color: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; }
 
